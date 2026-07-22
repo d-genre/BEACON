@@ -1,0 +1,6 @@
+﻿.env
+frontend/.env
+__pycache__/
+*.pyc
+beacon.db
+node_modules/
