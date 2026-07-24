@@ -242,46 +242,50 @@ async def websocket_department_chat(
                 db.refresh(user)
 
                 # Check MUTED / BANNED status dynamically before processing message
-                if user.account_status == UserAccountStatus.MUTED:
+                if user.account_status in (UserAccountStatus.MUTED, UserAccountStatus.BANNED):
                     await websocket.send_json({
                         "type": "ERROR",
-                        "message": "RESTRICTED: You are currently MUTED due to profanity violations and cannot send messages."
+                        "message": f"RESTRICTED: You are currently {user.account_status.value} and cannot send messages."
                     })
+                    if user.account_status == UserAccountStatus.BANNED:
+                        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                        break
                     continue
 
-                if user.account_status == UserAccountStatus.BANNED:
-                    await websocket.send_json({
-                        "type": "ERROR",
-                        "message": "ACCESS REVOKED: Account has been BANNED."
-                    })
-                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-                    break
-
                 # 2. Run Profanity Pipeline & Escalation
-                censored_text, prof_count, new_status, status_changed = process_message_moderation(
+                is_blocked, current_status, status_changed = process_message_moderation(
                     message_text, user, db
                 )
 
-                if status_changed:
+                if is_blocked:
                     await websocket.send_json({
-                        "type": "ACCOUNT_STATUS_UPDATE",
-                        "new_status": new_status.value,
+                        "type": "ERROR",
+                        "message": "Message blocked: Contains inappropriate language.",
                         "profanity_count": user.profanity_count,
-                        "mute_count": user.mute_count,
-                        "message": f"Warning: Policy threshold reached. Your account status is now {new_status.value}."
+                        "remaining_warnings": 20 - user.profanity_count
                     })
 
-                # If the user got muted/banned by this specific message, do not save or broadcast
-                if new_status in (UserAccountStatus.MUTED, UserAccountStatus.BANNED):
+                    if status_changed:
+                        await websocket.send_json({
+                            "type": "ACCOUNT_STATUS_UPDATE",
+                            "new_status": current_status.value,
+                            "profanity_count": user.profanity_count,
+                            "mute_count": user.mute_count,
+                            "message": f"Warning: Policy threshold reached. Your account status is now {current_status.value}."
+                        })
                     continue
 
-                # 3. Save Message to Database
+                # Create and broadcast message
                 chat_msg = ChatMessage(
                     room_id=room.id,
                     sender_id=user.id,
-                    content=censored_text
+                    content=message_text
                 )
                 db.add(chat_msg)
+                
+                # Reward XP
+                user.current_xp += 5
+                
                 db.commit()
                 db.refresh(chat_msg)
 
@@ -293,7 +297,7 @@ async def websocket_department_chat(
                     "sender_id": str(user.id),
                     "sender_name": user.name,
                     "sender_code": getattr(user, 'student_code', f"BCN-{str(user.id)[:6].upper()}"),
-                    "content": censored_text,
+                    "content": message_text,
                     "created_at": chat_msg.created_at.isoformat()
                 }
                 await manager.broadcast_room(str(room.id), broadcast_payload)

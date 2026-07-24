@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { MessageCircle, UserCheck, UserX, Send, Plus, ShieldAlert, AlertCircle, Lock, CheckCircle2 } from 'lucide-react';
+import { MessageCircle, UserCheck, UserX, Send, Plus, ShieldAlert, AlertCircle, Lock, CheckCircle2, Trash2 } from 'lucide-react';
 import axios from 'axios';
 
 interface DMRequest {
@@ -31,7 +31,7 @@ interface DMContact {
 }
 
 const DirectMessagesView: React.FC = () => {
-  const { user, token } = useAuth();
+  const { user, token, refreshProfile } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [requests, setRequests] = useState<DMRequest[]>([]);
@@ -42,6 +42,7 @@ const DirectMessagesView: React.FC = () => {
   const [input, setInput] = useState('');
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [blockedMessageWarning, setBlockedMessageWarning] = useState<{ message: string; remainingWarnings: number } | null>(null);
   const [showNewModal, setShowNewModal] = useState(false);
   const [targetUserIdInput, setTargetUserIdInput] = useState('');
   const [requestStatusMsg, setRequestStatusMsg] = useState<string | null>(null);
@@ -163,8 +164,12 @@ const DirectMessagesView: React.FC = () => {
     const activeToken = token || localStorage.getItem('beacon_token');
     if (!activeToken || !selectedTargetId) return;
 
+    const rawHost = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+    const wsHost = rawHost.startsWith('http') 
+      ? rawHost.replace(/^https?:\/\//, '') 
+      : '127.0.0.1:8000';
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//127.0.0.1:8000/dms/ws/${selectedTargetId}?token=${activeToken}`;
+    const wsUrl = `${protocol}//${wsHost}/dms/ws/${selectedTargetId}?token=${activeToken}`;
     const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
@@ -175,25 +180,50 @@ const DirectMessagesView: React.FC = () => {
       try {
         const data = JSON.parse(event.data);
         if (data.type === 'DIRECT_MESSAGE' || data.type === 'MESSAGE') {
-          const newMsg: DirectMessage = {
-            id: data.id || `dm-${Date.now()}`,
-            sender_id: data.sender_id,
-            sender_name: data.sender_name || 'User',
-            receiver_id: data.receiver_id || selectedTargetId,
-            content: data.content,
-            created_at: data.created_at || new Date().toISOString()
-          };
+          // Only append message to screen if it matches the current conversation view
+          const isFromSelectedTarget = data.sender_id === selectedTargetId;
+          const isToSelectedTarget = data.sender_id === user?.id && data.receiver_id === selectedTargetId;
 
-          setMessages(prev => {
-            if (prev.some(m => m.id === newMsg.id)) return prev;
-            return [...prev, newMsg];
-          });
+          if (isFromSelectedTarget || isToSelectedTarget) {
+            const newMsg: DirectMessage = {
+              id: data.id || `dm-${Date.now()}`,
+              sender_id: data.sender_id,
+              sender_name: data.sender_name || 'User',
+              receiver_id: data.receiver_id || selectedTargetId,
+              content: data.content,
+              created_at: data.created_at || new Date().toISOString()
+            };
+
+            setMessages(prev => {
+              if (prev.some(m => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+          } else {
+            // Received a message from a different user, refresh contacts/requests list
+            fetchData();
+          }
         } else if (data.type === 'ERROR') {
           setError(data.message);
+          if (data.message && data.message.includes("Message blocked")) {
+            setBlockedMessageWarning({
+              message: data.message,
+              remainingWarnings: data.remaining_warnings !== undefined ? data.remaining_warnings : 20
+            });
+            setTimeout(() => {
+              setBlockedMessageWarning(null);
+            }, 8000);
+          }
+        } else if (data.type === 'ACCOUNT_STATUS_UPDATE') {
+          setError(data.message);
+          refreshProfile();
         }
       } catch (err) {
         console.error("WS Parse error", err);
       }
+    };
+
+    socket.onerror = () => {
+      setError("WebSocket connection error. Make sure the backend is running.");
     };
 
     socket.onclose = (event) => {
@@ -259,6 +289,28 @@ const DirectMessagesView: React.FC = () => {
       fetchData();
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to reject request.");
+    }
+  };
+
+  const handleDeleteChat = async (targetId: string) => {
+    if (!window.confirm("Are you sure you want to delete this chat? This will erase all message history and disconnect the DM connection permanently.")) {
+      return;
+    }
+
+    const activeToken = token || localStorage.getItem('beacon_token');
+    if (!activeToken) return;
+
+    try {
+      await axios.delete(`${baseUrl}/dms/chat/${targetId}`, {
+        headers: { Authorization: `Bearer ${activeToken}` }
+      });
+      setSelectedTargetId(null);
+      setSelectedTargetName('');
+      localStorage.removeItem('active_dm_target_id');
+      localStorage.removeItem('active_dm_target_name');
+      await fetchData();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || "Failed to delete chat.");
     }
   };
 
@@ -378,6 +430,15 @@ const DirectMessagesView: React.FC = () => {
                   </p>
                 </div>
               </div>
+
+              <button
+                onClick={() => handleDeleteChat(selectedTargetId)}
+                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer flex items-center space-x-1.5 text-xs font-bold border border-transparent hover:border-red-200"
+                title="Delete Chat History & Disconnect"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Delete Chat</span>
+              </button>
             </div>
 
             {/* Error Banner */}
@@ -388,6 +449,28 @@ const DirectMessagesView: React.FC = () => {
                   <p className="font-bold">DM Connection Lock</p>
                   <p className="text-xs mt-0.5">{error}</p>
                 </div>
+              </div>
+            )}
+
+            {/* Floating Profanity Warning Toast */}
+            {blockedMessageWarning && (
+              <div className="absolute bottom-20 right-6 z-50 max-w-sm bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl shadow-xl flex items-start gap-3 animate-in slide-in-from-bottom-4 duration-300">
+                <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider">Moderation Block</h4>
+                  <p className="text-xs text-amber-755 mt-1 leading-relaxed">
+                    {blockedMessageWarning.message}
+                  </p>
+                  <p className="text-xs font-bold text-amber-900 mt-2 bg-amber-100/60 inline-block px-2.5 py-1 rounded-md">
+                    Warning threshold: {blockedMessageWarning.remainingWarnings} warning(s) left before your account is MUTED.
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setBlockedMessageWarning(null)} 
+                  className="text-amber-405 hover:text-amber-700 font-bold shrink-0 text-sm ml-2"
+                >
+                  ×
+                </button>
               </div>
             )}
 
@@ -421,22 +504,45 @@ const DirectMessagesView: React.FC = () => {
             </div>
 
             {/* Input Bar */}
-            <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-slate-200 shrink-0 flex items-center space-x-3">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={`Type message to ${selectedTargetName}...`}
-                className="flex-1 bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
-              />
-              <button
-                type="submit"
-                disabled={!input.trim() || !ws}
-                className="p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-md shadow-indigo-600/30 cursor-pointer"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
+            {user?.account_status === 'MUTED' || user?.account_status === 'BANNED' ? (
+              <div className="p-4 bg-white border-t border-slate-200 shrink-0 flex flex-col gap-2 items-center">
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs font-semibold w-full justify-center shadow-xs">
+                  <AlertCircle className="w-4 h-4 text-red-600" />
+                  Messaging privileges restricted due to moderation policy.
+                </div>
+                <div className="flex w-full items-center space-x-3 opacity-50">
+                  <input
+                    type="text"
+                    disabled={true}
+                    placeholder="Messaging privileges restricted due to moderation policy."
+                    className="flex-1 bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none cursor-not-allowed"
+                  />
+                  <button
+                    disabled={true}
+                    className="p-2.5 bg-indigo-600 text-white rounded-xl cursor-not-allowed shadow-md"
+                  >
+                    <Send className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-slate-200 shrink-0 flex items-center space-x-3">
+                <input
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder={`Type message to ${selectedTargetName}...`}
+                  className="flex-1 bg-slate-100 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all"
+                />
+                <button
+                  type="submit"
+                  disabled={!input.trim() || !ws}
+                  className="p-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-md shadow-indigo-600/30 cursor-pointer"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
+            )}
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8">

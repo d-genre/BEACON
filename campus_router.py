@@ -6,11 +6,20 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Faculty, Achievement, SeniorMentor, User, UserAccountStatus
+from models import Faculty, Achievement, SeniorMentor, User, UserAccountStatus, UserRole
+from auth import get_current_user, require_roles
 
 router = APIRouter(prefix="/api/v1", tags=["Campus Data"])
 
 # --- Pydantic Schemas ---
+
+class FacultyUpdate(BaseModel):
+    name: Optional[str] = None
+    department: Optional[str] = None
+    designation: Optional[str] = None
+    office_location: Optional[str] = None
+    office_hours: Optional[str] = None
+    status: Optional[str] = None
 
 class FacultyCreate(BaseModel):
     name: str
@@ -57,6 +66,16 @@ class AchievementResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class AchievementUpdate(BaseModel):
+    title: Optional[str] = None
+    category: Optional[str] = None
+    department: Optional[str] = None
+    studentName: Optional[str] = None
+    description: Optional[str] = None
+    date: Optional[str] = None
+    badgeColor: Optional[str] = None
 
 
 class MentorCreate(BaseModel):
@@ -134,13 +153,27 @@ def get_faculty_members(
 @router.post("/faculty", response_model=FacultyResponse, status_code=status.HTTP_201_CREATED)
 def create_faculty_member(
     payload: FacultyCreate,
+    current_user: User = Depends(require_roles([UserRole.FACULTY_ADMIN])),
     db: Session = Depends(get_db)
 ):
+    if payload.email.strip().lower() != current_user.email.strip().lower():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. You can only create a faculty card matching your own registered email."
+        )
+
+    existing = db.query(Faculty).filter(func.lower(Faculty.email) == payload.email.strip().lower()).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A faculty member with this email already exists."
+        )
+
     new_faculty = Faculty(
         name=payload.name,
         department=payload.department,
         designation=payload.designation,
-        email=payload.email,
+        email=payload.email.strip().lower(),
         office_location=payload.office_location,
         office_hours=payload.office_hours,
         status=payload.status
@@ -158,6 +191,82 @@ def create_faculty_member(
         officeHours=new_faculty.office_hours or "10:00 AM - 12:00 PM",
         status=new_faculty.status or "Available"
     )
+
+
+@router.put("/faculty/{faculty_id}", response_model=FacultyResponse)
+def update_faculty_member(
+    faculty_id: str,
+    payload: FacultyUpdate,
+    current_user: User = Depends(require_roles([UserRole.FACULTY_ADMIN])),
+    db: Session = Depends(get_db)
+):
+    try:
+        f_uuid = uuid.UUID(faculty_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid faculty ID")
+
+    faculty = db.query(Faculty).filter(Faculty.id == f_uuid).first()
+    if not faculty:
+        raise HTTPException(status_code=404, detail="Faculty member not found")
+
+    if faculty.email.strip().lower() != current_user.email.strip().lower():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. You can only edit your own faculty card."
+        )
+
+    if payload.name is not None:
+        faculty.name = payload.name
+    if payload.department is not None:
+        faculty.department = payload.department
+    if payload.designation is not None:
+        faculty.designation = payload.designation
+    if payload.office_location is not None:
+        faculty.office_location = payload.office_location
+    if payload.office_hours is not None:
+        faculty.office_hours = payload.office_hours
+    if payload.status is not None:
+        faculty.status = payload.status
+
+    db.commit()
+    db.refresh(faculty)
+    return FacultyResponse(
+        id=str(faculty.id),
+        name=faculty.name,
+        designation=faculty.designation,
+        department=faculty.department,
+        email=faculty.email,
+        cabin=faculty.office_location,
+        officeHours=faculty.office_hours or "10:00 AM - 12:00 PM",
+        status=faculty.status or "Available"
+    )
+
+
+@router.delete("/faculty/{faculty_id}", status_code=status.HTTP_200_OK)
+def delete_faculty_member(
+    faculty_id: str,
+    current_user: User = Depends(require_roles([UserRole.FACULTY_ADMIN])),
+    db: Session = Depends(get_db)
+):
+    try:
+        f_uuid = uuid.UUID(faculty_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid faculty ID")
+
+    faculty = db.query(Faculty).filter(Faculty.id == f_uuid).first()
+    if not faculty:
+        raise HTTPException(status_code=404, detail="Faculty member not found")
+
+    if faculty.email.strip().lower() != current_user.email.strip().lower():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. You can only delete your own faculty card."
+        )
+
+    db.delete(faculty)
+    db.commit()
+    return {"message": "Faculty member card deleted successfully."}
+
 
 
 # --- Achievements Endpoints ---
@@ -193,10 +302,15 @@ def get_achievements(
 @router.post("/achievements", response_model=AchievementResponse, status_code=status.HTTP_201_CREATED)
 def create_achievement(
     payload: AchievementCreate,
+    current_user: User = Depends(require_roles([UserRole.FACULTY_ADMIN, UserRole.CLUB_ADMIN])),
     db: Session = Depends(get_db)
 ):
     # Enforce BANNED account status check
-    check_user_not_banned(payload.user_id, db)
+    if current_user.account_status == UserAccountStatus.BANNED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is BANNED due to community standard violations. Write operations are disabled."
+        )
 
     new_achievement = Achievement(
         title=payload.title,
@@ -220,6 +334,71 @@ def create_achievement(
         date=new_achievement.date,
         badgeColor=new_achievement.badge_color
     )
+
+
+@router.put("/achievements/{achievement_id}", response_model=AchievementResponse)
+def update_achievement(
+    achievement_id: str,
+    payload: AchievementUpdate,
+    current_user: User = Depends(require_roles([UserRole.CLUB_ADMIN, UserRole.SUPER_ADMIN])),
+    db: Session = Depends(get_db)
+):
+    try:
+        a_uuid = uuid.UUID(achievement_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid achievement ID")
+
+    achievement = db.query(Achievement).filter(Achievement.id == a_uuid).first()
+    if not achievement:
+        raise HTTPException(status_code=404, detail="Achievement not found")
+
+    if payload.title is not None:
+        achievement.title = payload.title
+    if payload.category is not None:
+        achievement.category = payload.category
+    if payload.department is not None:
+        achievement.department = payload.department
+    if payload.studentName is not None:
+        achievement.student_name = payload.studentName
+    if payload.description is not None:
+        achievement.description = payload.description
+    if payload.date is not None:
+        achievement.date = payload.date
+    if payload.badgeColor is not None:
+        achievement.badge_color = payload.badgeColor
+
+    db.commit()
+    db.refresh(achievement)
+    return AchievementResponse(
+        id=str(achievement.id),
+        title=achievement.title,
+        category=achievement.category,
+        department=achievement.department,
+        studentName=achievement.student_name,
+        description=achievement.description,
+        date=achievement.date,
+        badgeColor=achievement.badge_color
+    )
+
+
+@router.delete("/achievements/{achievement_id}", status_code=status.HTTP_200_OK)
+def delete_achievement(
+    achievement_id: str,
+    current_user: User = Depends(require_roles([UserRole.FACULTY_ADMIN, UserRole.CLUB_ADMIN, UserRole.SUPER_ADMIN])),
+    db: Session = Depends(get_db)
+):
+    try:
+        a_uuid = uuid.UUID(achievement_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid achievement ID")
+
+    achievement = db.query(Achievement).filter(Achievement.id == a_uuid).first()
+    if not achievement:
+        raise HTTPException(status_code=404, detail="Achievement not found")
+
+    db.delete(achievement)
+    db.commit()
+    return {"message": "Achievement deleted successfully."}
 
 
 # --- Senior Mentors Endpoints ---
@@ -254,14 +433,26 @@ def get_senior_mentors(
 @router.post("/mentors", response_model=MentorResponse, status_code=status.HTTP_201_CREATED)
 def register_senior_mentor(
     payload: MentorCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     # Enforce BANNED account status check
-    check_user_not_banned(payload.user_id, db)
+    if current_user.account_status == UserAccountStatus.BANNED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is BANNED due to community standard violations. Write operations are disabled."
+        )
+
+    # Regular students can only register/update their own mentor profile
+    if current_user.role == UserRole.STUDENT and payload.contactEmail.strip().lower() != current_user.email.strip().lower():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. You can only register or update a mentor profile with your own college email."
+        )
 
     # Check if a mentor profile already exists for this contact email
     existing_mentor = db.query(SeniorMentor).filter(
-        func.lower(SeniorMentor.contact_email) == payload.contactEmail.lower()
+        func.lower(SeniorMentor.contact_email) == payload.contactEmail.strip().lower()
     ).first()
 
     if existing_mentor:
@@ -296,7 +487,7 @@ def register_senior_mentor(
         rating=payload.rating or 5.0,
         mentees_count=0,
         is_available=payload.isAvailable if payload.isAvailable is not None else True,
-        contact_email=payload.contactEmail
+        contact_email=payload.contactEmail.strip().lower()
     )
     db.add(new_mentor)
     db.commit()
@@ -318,10 +509,14 @@ def register_senior_mentor(
 @router.patch("/mentors/{mentor_id}/toggle_availability", response_model=MentorResponse)
 def toggle_mentor_availability(
     mentor_id: str,
-    user_id: Optional[str] = Query(None),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    check_user_not_banned(user_id, db)
+    if current_user.account_status == UserAccountStatus.BANNED:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Your account is BANNED due to community standard violations. Write operations are disabled."
+        )
 
     try:
         m_uuid = uuid.UUID(mentor_id)
@@ -331,6 +526,16 @@ def toggle_mentor_availability(
     mentor = db.query(SeniorMentor).filter(SeniorMentor.id == m_uuid).first()
     if not mentor:
         raise HTTPException(status_code=404, detail="Senior mentor not found")
+
+    # Only FACULTY_ADMIN or the mentor themselves (matching email) can toggle availability
+    is_owner = mentor.contact_email.strip().lower() == current_user.email.strip().lower()
+    is_admin = current_user.role == UserRole.FACULTY_ADMIN
+
+    if not is_owner and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. You can only toggle availability for your own mentor profile."
+        )
 
     mentor.is_available = not mentor.is_available
     db.commit()
@@ -347,3 +552,34 @@ def toggle_mentor_availability(
         isAvailable=mentor.is_available,
         contactEmail=mentor.contact_email
     )
+
+
+@router.delete("/mentors/{mentor_id}", status_code=status.HTTP_200_OK)
+def delete_senior_mentor(
+    mentor_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    try:
+        m_uuid = uuid.UUID(mentor_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid mentor ID")
+
+    mentor = db.query(SeniorMentor).filter(SeniorMentor.id == m_uuid).first()
+    if not mentor:
+        raise HTTPException(status_code=404, detail="Senior mentor not found")
+
+    # Only FACULTY_ADMIN or the mentor themselves (matching email) can delete
+    is_owner = mentor.contact_email.strip().lower() == current_user.email.strip().lower()
+    is_admin = current_user.role == UserRole.FACULTY_ADMIN
+
+    if not is_owner and not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. You can only delete your own mentor profile."
+        )
+
+    db.delete(mentor)
+    db.commit()
+    return {"message": "Senior mentor profile deleted successfully."}
+

@@ -14,11 +14,12 @@ interface ChatMessage {
 }
 
 const DepartmentChatsView: React.FC = () => {
-  const { user, token } = useAuth();
+  const { user, token, refreshProfile } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [blockedMessageWarning, setBlockedMessageWarning] = useState<{ message: string; remainingWarnings: number } | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -65,8 +66,18 @@ const DepartmentChatsView: React.FC = () => {
           setMessages(prev => [...prev, data]);
         } else if (data.type === 'ERROR') {
           setError(data.message);
+          if (data.message && data.message.includes("Message blocked")) {
+            setBlockedMessageWarning({
+              message: data.message,
+              remainingWarnings: data.remaining_warnings !== undefined ? data.remaining_warnings : 20
+            });
+            setTimeout(() => {
+              setBlockedMessageWarning(null);
+            }, 8000);
+          }
         } else if (data.type === 'ACCOUNT_STATUS_UPDATE') {
           setError(data.message);
+          refreshProfile();
         }
       } catch (err) {
         console.error("Failed to parse WS message", err);
@@ -150,6 +161,28 @@ const DepartmentChatsView: React.FC = () => {
         </div>
       )}
 
+      {/* Floating Profanity Warning Toast */}
+      {blockedMessageWarning && (
+        <div className="fixed bottom-24 right-6 z-50 max-w-sm bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r-xl shadow-xl flex items-start gap-3 animate-in slide-in-from-bottom-4 duration-300">
+          <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <h4 className="text-xs font-bold text-amber-800 uppercase tracking-wider">Moderation Block</h4>
+            <p className="text-xs text-amber-750 mt-1 leading-relaxed">
+              {blockedMessageWarning.message}
+            </p>
+            <p className="text-xs font-bold text-amber-900 mt-2 bg-amber-100/60 inline-block px-2.5 py-1 rounded-md">
+              Warning threshold: {blockedMessageWarning.remainingWarnings} warning(s) left before your account is MUTED.
+            </p>
+          </div>
+          <button 
+            onClick={() => setBlockedMessageWarning(null)} 
+            className="text-amber-405 hover:text-amber-700 font-bold shrink-0 text-sm ml-2"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
         <div className="text-center mb-8">
@@ -203,10 +236,26 @@ const DepartmentChatsView: React.FC = () => {
       {/* Input Area */}
       <div className="bg-white border-t border-slate-200 p-4 shrink-0 z-10">
         <div className="max-w-4xl mx-auto">
-          {user.account_status === 'MUTED' ? (
-             <div className="bg-red-50 border border-red-200 text-red-600 rounded-xl p-4 text-center text-sm font-medium flex items-center justify-center gap-2">
-               <AlertTriangle className="w-5 h-5" />
-               Your account is currently MUTED. You cannot send messages in department chats.
+          {user.account_status === 'MUTED' || user.account_status === 'BANNED' ? (
+             <div className="flex flex-col gap-3 items-center">
+               <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs font-semibold shadow-xs w-full justify-center">
+                 <AlertTriangle className="w-4 h-4 text-red-600" />
+                 Messaging privileges restricted due to moderation policy.
+               </div>
+               <div className="flex w-full items-center gap-2 opacity-50">
+                 <input
+                   type="text"
+                   disabled={true}
+                   placeholder="Messaging privileges restricted due to moderation policy."
+                   className="flex-1 bg-slate-100 border border-slate-200 rounded-full px-5 py-3 text-sm focus:outline-none cursor-not-allowed"
+                 />
+                 <button
+                   disabled={true}
+                   className="bg-indigo-655 text-white p-3 rounded-full cursor-not-allowed shadow-sm"
+                 >
+                   <Send className="w-5 h-5 -ml-0.5" />
+                 </button>
+               </div>
              </div>
           ) : (
             <form onSubmit={handleSend} className="flex items-center gap-2">
@@ -215,12 +264,12 @@ const DepartmentChatsView: React.FC = () => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Type a message..."
-                disabled={!isConnected || user.account_status === 'BANNED'}
+                disabled={!isConnected}
                 className="flex-1 bg-slate-100 border border-slate-200 rounded-full px-5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all disabled:opacity-50"
               />
               <button
                 type="submit"
-                disabled={!input.trim() || !isConnected || user.account_status === 'BANNED'}
+                disabled={!input.trim() || !isConnected}
                 className="bg-indigo-600 text-white p-3 rounded-full hover:bg-indigo-700 disabled:opacity-50 disabled:hover:bg-indigo-600 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
               >
                 <Send className="w-5 h-5 -ml-0.5" />

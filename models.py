@@ -24,15 +24,18 @@ from database import Base
 
 
 class UserAccountStatus(str, enum.Enum):
+    PENDING = "PENDING"
     ACTIVE = "ACTIVE"
     MUTED = "MUTED"
     BANNED = "BANNED"
+
 
 
 class UserRole(str, enum.Enum):
     STUDENT = "STUDENT"
     CLUB_ADMIN = "CLUB_ADMIN"
     FACULTY_ADMIN = "FACULTY_ADMIN"
+    SUPER_ADMIN = "SUPER_ADMIN"
 
 
 class DMRequestStatus(str, enum.Enum):
@@ -397,4 +400,23 @@ class SeniorMentor(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class CongruenceProfile(Base):
+    __tablename__ = "congruence_profiles"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+    opt_in_status: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    skills: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    proof_of_skills: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    past_achievements_summary: Mapped[str] = mapped_column(Text, nullable=True)
+    embedding_vector: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+
+    user: Mapped["User"] = relationship("User")
+
 

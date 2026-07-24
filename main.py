@@ -8,6 +8,8 @@ from timetable_router import router as timetable_router
 from ai_router import router as ai_router
 from navigation_router import router as navigation_router
 from campus_router import router as campus_router
+from clubs_router import router as clubs_router
+from congruence_router import router as congruence_router
 from database import Base, engine
 from sqlalchemy import text
 
@@ -65,6 +67,8 @@ app.include_router(timetable_router)
 app.include_router(ai_router)
 app.include_router(navigation_router)
 app.include_router(campus_router)
+app.include_router(clubs_router)
+app.include_router(congruence_router)
 
 
 @app.get("/")

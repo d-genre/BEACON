@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { UploadCloud, CheckCircle2, AlertCircle, Calendar, Plus, Edit2, Trash2, X, Save, Sparkles, Grid, Table } from 'lucide-react';
+import { UploadCloud, CheckCircle2, AlertCircle, Calendar, Plus, Edit2, Trash2, X, Save, Table } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 

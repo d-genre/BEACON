@@ -17,10 +17,11 @@ import FacultyView from './views/FacultyView';
 import SeniorMentorView from './views/SeniorMentorView';
 import DirectMessagesView from './views/DirectMessagesView';
 import ProfileView from './views/ProfileView';
+import ClubsHubView from './views/ClubsHubView';
+import CongruenceView from './views/CongruenceView';
 import FloatingAIMentor from './components/ai/FloatingAIMentor';
 
-// Placeholder for remaining views
-const PlaceholderView = ({ title }: { title: string }) => <div className="p-8"><h1 className="text-3xl font-bold">{title}</h1></div>;
+
 
 const AppLayout = ({ children }: { children: React.ReactNode }) => (
   <div className="flex h-screen overflow-hidden bg-slate-50">
@@ -62,8 +63,10 @@ function App() {
                     <Route path="/timetable" element={<TimetableView />} />
                     <Route path="/maps" element={<MapsView />} />
                     <Route path="/achievements" element={<AchievementsView />} />
+                    <Route path="/clubs" element={<ClubsHubView />} />
                     <Route path="/chats" element={<DepartmentChatsView />} />
                     <Route path="/faculty" element={<FacultyView />} />
+                    <Route path="/congruence" element={<CongruenceView />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </AppLayout>

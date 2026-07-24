@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, Mail, Lock, User as UserIcon, Building, AlertCircle, CheckCircle2, Loader2, MailCheck } from 'lucide-react';
+import type { UserRole } from '../context/AuthContext';
+import { UserPlus, Mail, Lock, User as UserIcon, Building, AlertCircle, CheckCircle2, Loader2, MailCheck, UserCheck, ShieldCheck, Award } from 'lucide-react';
 import axios from 'axios';
 
 const COLLEGE_EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@saranathan\.ac\.in$/;
@@ -25,6 +26,7 @@ const RegisterView: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [department, setDepartment] = useState(DEPARTMENTS[0]);
+  const [selectedRole, setSelectedRole] = useState<UserRole>('STUDENT');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
@@ -54,14 +56,15 @@ const RegisterView: React.FC = () => {
         options: {
           data: {
             name: name.trim(),
-            department: department
+            department: department,
+            role: selectedRole
           }
         }
       });
 
       if (authError) {
         if (authError.message.includes("already registered") || authError.status === 400) {
-          throw new Error("An account with this email already exists. Please click 'Sign in' below to log in.");
+          throw new Error("An account with this email already exists in Supabase. Please click 'Sign in' below to log in.");
         }
         throw new Error(authError.message);
       }
@@ -75,9 +78,8 @@ const RegisterView: React.FC = () => {
         user_id: supabaseUserId,
         name: name.trim(),
         email: email.trim(),
-        password: password,
         department: department,
-        role: "STUDENT"
+        role: selectedRole
       };
 
       const headers: Record<string, string> = {};
@@ -88,9 +90,7 @@ const RegisterView: React.FC = () => {
       try {
         await axios.post(`${baseUrl}/auth/register`, registerPayload, { headers });
       } catch (backendErr: any) {
-        if (backendErr.response?.status !== 400) {
-          console.warn("Backend registration warning:", backendErr.response?.data);
-        }
+        console.warn("Backend registration notice:", backendErr.response?.data || backendErr.message);
       }
 
       // 3. Check if email verification is required
@@ -101,7 +101,7 @@ const RegisterView: React.FC = () => {
         // Auto-logged in if confirmation is disabled in Supabase dashboard
         const profile = await fetchProfile(sessionToken);
         if (!profile) {
-          setError("Registered with Supabase, but could not connect to Beacon backend at http://localhost:8000. Please make sure 'uvicorn main:app --reload' is running in your terminal!");
+          setError("Registered with Supabase, but could not connect to Beacon backend. Please make sure the backend is running!");
           return;
         }
         navigate('/', { replace: true });
@@ -112,6 +112,12 @@ const RegisterView: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const roleOptions: { id: UserRole; label: string; icon: any; color: string }[] = [
+    { id: 'STUDENT', label: 'Student', icon: UserCheck, color: 'border-primary-500 bg-primary-500/10 text-primary-400' },
+    { id: 'FACULTY_ADMIN', label: 'Faculty Admin', icon: ShieldCheck, color: 'border-indigo-500 bg-indigo-500/10 text-indigo-400' },
+    { id: 'CLUB_ADMIN', label: 'Club Admin', icon: Award, color: 'border-amber-500 bg-amber-500/10 text-amber-400' }
+  ];
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
@@ -137,7 +143,7 @@ const RegisterView: React.FC = () => {
 
             <button
               onClick={() => navigate('/login')}
-              className="w-full bg-primary-600 hover:bg-primary-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-primary-600/30 transition-all"
+              className="w-full bg-primary-600 hover:bg-primary-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-primary-600/30 transition-all cursor-pointer"
             >
               Proceed to Sign In
             </button>
@@ -160,6 +166,34 @@ const RegisterView: React.FC = () => {
             )}
 
             <form onSubmit={handleRegister} className="space-y-4">
+              {/* ROLE SELECTOR TOGGLE */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+                  Select Registration Role
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {roleOptions.map((role) => {
+                    const Icon = role.icon;
+                    const isSelected = selectedRole === role.id;
+                    return (
+                      <button
+                        key={role.id}
+                        type="button"
+                        onClick={() => setSelectedRole(role.id)}
+                        className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+                          isSelected 
+                            ? role.color + ' ring-2 ring-white/30 shadow-md' 
+                            : 'border-slate-700 bg-slate-800/40 text-slate-400 hover:bg-slate-800'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="text-[10px] text-center leading-tight">{role.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Full Name</label>
                 <div className="relative">
@@ -241,7 +275,7 @@ const RegisterView: React.FC = () => {
               <button
                 type="submit"
                 disabled={loading || !isEmailValid}
-                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 mt-2"
+                className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-3.5 rounded-xl shadow-lg shadow-indigo-600/30 transition-all flex items-center justify-center space-x-2 disabled:opacity-50 mt-2 cursor-pointer"
               >
                 {loading ? (
                   <>

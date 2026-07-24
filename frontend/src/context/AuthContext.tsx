@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import axios from 'axios';
 import { supabase } from '../lib/supabaseClient';
 
-export type UserRole = 'STUDENT' | 'CLUB_ADMIN' | 'FACULTY_ADMIN';
+export type UserRole = 'STUDENT' | 'CLUB_ADMIN' | 'FACULTY_ADMIN' | 'SUPER_ADMIN';
 export type UserAccountStatus = 'ACTIVE' | 'MUTED' | 'BANNED';
 
 export interface User {
@@ -56,7 +56,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const refreshProfile = async () => {
     const activeToken = token || localStorage.getItem('beacon_token');
     if (activeToken) {
-      await fetchProfile(activeToken);
+      try {
+        await fetchProfile(activeToken);
+      } catch (err) {
+        console.warn('Failed to refresh profile:', err);
+      }
     }
   };
 
@@ -85,7 +89,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.access_token) {
         setToken(session.access_token);
-        await fetchProfile(session.access_token);
+        try {
+          await fetchProfile(session.access_token);
+        } catch (err) {
+          console.error("Failed to fetch profile on auth state change:", err);
+        }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setToken(null);

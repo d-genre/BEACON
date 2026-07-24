@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { KeyRound, Mail, Lock, ShieldCheck, AlertCircle, CheckCircle2, Loader2, ArrowLeft, MailCheck } from 'lucide-react';
-import axios from 'axios';
 import { supabase } from '../lib/supabaseClient';
 
 const ForgotPasswordView: React.FC = () => {
@@ -12,10 +11,8 @@ const ForgotPasswordView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [emailSent, setEmailSent] = useState(false);
 
   const navigate = useNavigate();
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
 
   // Listen for Supabase password recovery callback when user clicks the link in their email
   useEffect(() => {
@@ -60,7 +57,7 @@ const ForgotPasswordView: React.FC = () => {
     setLoading(true);
 
     try {
-      // 1. Send password reset verification email via Supabase Auth
+      // Send password reset verification email via Supabase Auth
       const { error: sbError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
         redirectTo: `${window.location.origin}/forgot-password`,
       });
@@ -69,15 +66,7 @@ const ForgotPasswordView: React.FC = () => {
         throw new Error(sbError.message);
       }
 
-      // 2. Notify campus backend for audit
-      try {
-        await axios.post(`${baseUrl}/auth/forgot_password`, { email: cleanEmail });
-      } catch (backendErr) {
-        console.warn("[BACKEND] Sync notice:", backendErr);
-      }
-
-      setEmailSent(true);
-      setSuccessMsg(`📧 Password reset verification email sent to ${cleanEmail}! Please check your inbox and click the reset link.`);
+      setSuccessMsg(`📧 Password reset email sent to ${cleanEmail}! Please click the recovery link in your inbox.`);
     } catch (err: any) {
       setError(err.message || "Failed to send password reset email. Please try again.");
     } finally {
@@ -100,27 +89,20 @@ const ForgotPasswordView: React.FC = () => {
     }
 
     setLoading(true);
-    const cleanEmail = email.trim().toLowerCase();
 
     try {
-      // 1. Update password in Supabase Auth
+      // Update password in Supabase Auth
       const { error: sbUpdateErr } = await supabase.auth.updateUser({ password: newPassword });
       if (sbUpdateErr) {
-        console.warn("[SUPABASE AUTH] Update note:", sbUpdateErr.message);
+        throw new Error(sbUpdateErr.message);
       }
-
-      // 2. Update password in campus database
-      await axios.post(`${baseUrl}/auth/reset_password`, {
-        email: cleanEmail,
-        new_password: newPassword
-      });
 
       setSuccessMsg("Password updated successfully! Redirecting to Sign In...");
       setTimeout(() => {
         navigate('/login', { replace: true });
       }, 1500);
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || "Failed to update password.");
+      setError(err.message || "Failed to update password.");
     } finally {
       setLoading(false);
     }
@@ -162,24 +144,7 @@ const ForgotPasswordView: React.FC = () => {
         )}
 
         {step === 1 ? (
-          emailSent ? (
-            <div className="text-center space-y-4 py-4">
-              <div className="w-16 h-16 rounded-full bg-green-500/20 border border-green-500/30 flex items-center justify-center mx-auto text-green-400">
-                <MailCheck className="w-8 h-8" />
-              </div>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Check your email inbox at <strong className="text-white">{email}</strong>. Click the verification link in the email to set your new password.
-              </p>
-              <button
-                type="button"
-                onClick={() => { setEmailSent(false); setSuccessMsg(null); }}
-                className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold underline cursor-pointer"
-              >
-                Send to a different email
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleSendResetEmail} className="space-y-4">
+          <form onSubmit={handleSendResetEmail} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                   College Email Address
@@ -212,7 +177,6 @@ const ForgotPasswordView: React.FC = () => {
                 )}
               </button>
             </form>
-          )
         ) : (
           <form onSubmit={handleUpdatePassword} className="space-y-4">
             <div>

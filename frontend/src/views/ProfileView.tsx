@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User as UserIcon, Mail, Building, ShieldCheck, Zap, Save, CheckCircle2, AlertCircle, Loader2, Copy, Key, Lock, Settings } from 'lucide-react';
+import { User as UserIcon, Mail, Building, ShieldCheck, Zap, Save, CheckCircle2, AlertCircle, Loader2, Copy, Key, Lock, Settings, Trash2 } from 'lucide-react';
 import axios from 'axios';
 
 const DEPARTMENTS = [
@@ -31,6 +31,31 @@ const ProfileView: React.FC = () => {
   const [passLoading, setPassLoading] = useState(false);
   const [passSuccessMsg, setPassSuccessMsg] = useState<string | null>(null);
   const [passErrorMsg, setPassErrorMsg] = useState<string | null>(null);
+
+  // Delete Account State
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const { logout } = useAuth();
+
+  const handleDeleteAccount = async () => {
+    if (!token) return;
+    setDeleteLoading(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+      await axios.delete(`${baseUrl}/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      await logout();
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.detail || "Failed to delete account. Please try again.");
+      setDeleteConfirm(false);
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -342,6 +367,56 @@ const ProfileView: React.FC = () => {
             </button>
           </div>
         </form>
+      </div>
+
+      {/* DELETE ACCOUNT DANGER ZONE */}
+      <div className="bg-red-50/50 rounded-3xl p-8 border border-red-200 shadow-sm space-y-6">
+        <h3 className="text-lg font-bold text-red-900 flex items-center gap-2 border-b border-red-100 pb-4">
+          <Trash2 className="w-5 h-5 text-red-600" />
+          Danger Zone
+        </h3>
+        
+        <p className="text-xs text-red-700 font-medium leading-relaxed">
+          Once you delete your account, there is no going back. All of your personal details, achievements, timetables, and messaging data will be permanently wiped from the campus database.
+        </p>
+
+        <div className="flex justify-start">
+          {!deleteConfirm ? (
+            <button
+              type="button"
+              onClick={() => setDeleteConfirm(true)}
+              className="px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-2 cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Delete My Account & Data</span>
+            </button>
+          ) : (
+            <div className="flex flex-col space-y-3">
+              <p className="text-xs font-bold text-red-800 flex items-center gap-1.5 animate-pulse">
+                <AlertCircle className="w-4 h-4" /> Are you absolutely sure you want to permanently delete your account?
+              </p>
+              <div className="flex space-x-3">
+                <button
+                  type="button"
+                  disabled={deleteLoading}
+                  onClick={handleDeleteAccount}
+                  className="px-5 py-2.5 bg-red-700 hover:bg-red-800 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center space-x-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {deleteLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  <span>Yes, Delete Everything</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={deleteLoading}
+                  onClick={() => setDeleteConfirm(false)}
+                  className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

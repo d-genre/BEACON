@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquareText, X, Send, Bot, User as UserIcon, Loader2, Sparkles, Compass, Code, GraduationCap, Zap } from 'lucide-react';
+import { X, Send, Bot, User as UserIcon, Loader2, Sparkles } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../../context/AuthContext';
 

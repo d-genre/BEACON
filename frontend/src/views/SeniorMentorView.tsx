@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Star, Award, MessageCircle, Search, Sparkles, Plus, CheckCircle2, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react';
+import { Star, Award, MessageCircle, Search, Sparkles, Plus, CheckCircle2, ToggleLeft, ToggleRight, Loader2, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface SeniorMentor {
@@ -33,7 +33,7 @@ const DEPARTMENTS = [
 const YEARS = ["All Years", "2nd Year", "3rd Year", "4th Year"];
 
 const SeniorMentorView: React.FC = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
   const [mentors, setMentors] = useState<SeniorMentor[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -44,6 +44,28 @@ const SeniorMentorView: React.FC = () => {
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const handleDeleteMentor = async (id: string) => {
+    if (!token) return;
+    if (!window.confirm("Are you sure you want to delete your mentor profile?")) return;
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/mentors/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setMentors(prev => prev.filter(m => m.id !== id));
+        setSuccessMsg("Mentor profile deleted successfully.");
+        setTimeout(() => setSuccessMsg(null), 4000);
+      } else {
+        const errData = await res.json();
+        setErrorMsg(errData.detail || "Failed to delete mentor profile.");
+      }
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("Network error deleting mentor profile.");
+    }
+  };
 
   // Form states for senior user to list themselves as mentor
   const [myYear, setMyYear] = useState<'2nd Year' | '3rd Year' | '4th Year'>('3rd Year');
@@ -125,7 +147,10 @@ const SeniorMentorView: React.FC = () => {
     try {
       const res = await fetch(`${baseUrl}/api/v1/mentors`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
         body: JSON.stringify(payload)
       });
 
@@ -155,9 +180,11 @@ const SeniorMentorView: React.FC = () => {
   };
 
   const toggleAvailability = async (id: string) => {
+    if (!token) return;
     try {
-      const res = await fetch(`${baseUrl}/api/v1/mentors/${id}/toggle_availability?user_id=${user?.id || ''}`, {
-        method: 'PATCH'
+      const res = await fetch(`${baseUrl}/api/v1/mentors/${id}/toggle_availability`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
         const updatedMentor = await res.json();
@@ -346,28 +373,39 @@ const SeniorMentorView: React.FC = () => {
                     <span>{mentor.menteesCount} Mentees</span>
                   </div>
 
-                  {isMe ? (
-                    <button
-                      onClick={() => toggleAvailability(mentor.id)}
-                      className={`px-3.5 py-1.5 text-xs font-bold rounded-xl shadow-sm transition-all flex items-center space-x-1.5 cursor-pointer ${
-                        mentor.isAvailable 
-                          ? 'bg-green-600 hover:bg-green-700 text-white' 
-                          : 'bg-slate-700 hover:bg-slate-800 text-white'
-                      }`}
-                    >
-                      {mentor.isAvailable ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
-                      <span>{mentor.isAvailable ? "Open for Mentees" : "Status: Busy"}</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleRequestGuidance(mentor)}
-                      disabled={!mentor.isAvailable}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-600/20 transition-all flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
-                    >
-                      <MessageCircle className="w-3.5 h-3.5" />
-                      <span>{mentor.isAvailable ? "Request Guidance" : "Busy"}</span>
-                    </button>
-                  )}
+                  <div className="flex items-center space-x-2">
+                    {isMe ? (
+                      <button
+                        onClick={() => toggleAvailability(mentor.id)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-xl shadow-sm transition-all flex items-center space-x-1.5 cursor-pointer ${
+                          mentor.isAvailable 
+                            ? 'bg-green-600 hover:bg-green-700 text-white' 
+                            : 'bg-slate-700 hover:bg-slate-800 text-white'
+                        }`}
+                      >
+                        {mentor.isAvailable ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                        <span>{mentor.isAvailable ? "Open" : "Busy"}</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleRequestGuidance(mentor)}
+                        disabled={!mentor.isAvailable}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-600/20 transition-all flex items-center space-x-1.5 disabled:opacity-50 cursor-pointer"
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        <span>{mentor.isAvailable ? "Request Guidance" : "Busy"}</span>
+                      </button>
+                    )}
+                    {(isMe || user?.role === 'FACULTY_ADMIN') && (
+                      <button
+                        onClick={() => handleDeleteMentor(mentor.id)}
+                        className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-600 border border-slate-200 hover:border-red-200 rounded-xl transition-colors cursor-pointer"
+                        title="Delete Mentor Profile"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );

@@ -193,6 +193,13 @@ def connect_or_create_dm(
     Directly connects/resolves target user (or senior mentor) and auto-accepts DM connection.
     Returns target user contact info so frontend can immediately open chatbox.
     """
+    # Check if MUTED or BANNED
+    if current_user.account_status in (UserAccountStatus.MUTED, UserAccountStatus.BANNED):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Access denied. Your account status is '{current_user.account_status.value}'."
+        )
+
     clean_identifier = receiver_identifier.strip()
 
     # Check User table by student_code, email, or UUID
@@ -468,6 +475,33 @@ def get_dm_history(
     ]
 
 
+@router.delete("/chat/{target_user_id}", status_code=status.HTTP_200_OK)
+def delete_dm_chat(
+    target_user_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Deletes all messages and the connection handshake between the current user and the target user."""
+    # 1. Delete messages
+    db.query(DirectMessage).filter(
+        or_(
+            and_(DirectMessage.sender_id == current_user.id, DirectMessage.receiver_id == target_user_id),
+            and_(DirectMessage.sender_id == target_user_id, DirectMessage.receiver_id == current_user.id)
+        )
+    ).delete(synchronize_session=False)
+
+    # 2. Delete connection
+    db.query(DMRequest).filter(
+        or_(
+            and_(DMRequest.sender_id == current_user.id, DMRequest.receiver_id == target_user_id),
+            and_(DMRequest.sender_id == target_user_id, DMRequest.receiver_id == current_user.id)
+        )
+    ).delete(synchronize_session=False)
+
+    db.commit()
+    return {"message": "Chat history and connection deleted successfully."}
+
+
 # --- WebSocket Direct Messaging Handler ---
 
 @router.websocket("/ws/{target_user_id}")
@@ -556,45 +590,50 @@ async def websocket_direct_messaging(
                 db.refresh(sender)
 
                 # Check MUTED / BANNED dynamically
-                if sender.account_status == UserAccountStatus.MUTED:
+                if sender.account_status in (UserAccountStatus.MUTED, UserAccountStatus.BANNED):
                     await websocket.send_json({
                         "type": "ERROR",
-                        "message": "RESTRICTED: You are currently MUTED and cannot send messages."
+                        "message": f"RESTRICTED: You are currently {sender.account_status.value} and cannot send messages."
                     })
+                    if sender.account_status == UserAccountStatus.BANNED:
+                        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+                        break
                     continue
 
-                if sender.account_status == UserAccountStatus.BANNED:
-                    await websocket.send_json({
-                        "type": "ERROR",
-                        "message": "ACCESS REVOKED: Account has been BANNED."
-                    })
-                    await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-                    break
-
                 # 3. Profanity Moderation
-                censored_text, prof_count, new_status, status_changed = process_message_moderation(
+                is_blocked, current_status, status_changed = process_message_moderation(
                     message_text, sender, db
                 )
 
-                if status_changed:
+                if is_blocked:
                     await websocket.send_json({
-                        "type": "ACCOUNT_STATUS_UPDATE",
-                        "new_status": new_status.value,
+                        "type": "ERROR",
+                        "message": "Message blocked: Contains inappropriate language.",
                         "profanity_count": sender.profanity_count,
-                        "mute_count": sender.mute_count,
-                        "message": f"Warning: Policy threshold reached. Your account status is now {new_status.value}."
+                        "remaining_warnings": 20 - sender.profanity_count
                     })
 
-                if new_status in (UserAccountStatus.MUTED, UserAccountStatus.BANNED):
+                    if status_changed:
+                        await websocket.send_json({
+                            "type": "ACCOUNT_STATUS_UPDATE",
+                            "new_status": current_status.value,
+                            "profanity_count": sender.profanity_count,
+                            "mute_count": sender.mute_count,
+                            "message": f"Warning: Policy threshold reached. Your account status is now {current_status.value}."
+                        })
                     continue
 
                 # 4. Store Direct Message
                 dm_msg = DirectMessage(
                     sender_id=sender_id,
                     receiver_id=target_user_id,
-                    content=censored_text
+                    content=message_text
                 )
                 db.add(dm_msg)
+
+                # Reward XP
+                sender.current_xp += 5
+
                 db.commit()
                 db.refresh(dm_msg)
 
@@ -604,7 +643,7 @@ async def websocket_direct_messaging(
                     "sender_id": str(sender_id),
                     "sender_name": sender.name,
                     "receiver_id": str(target_user_id),
-                    "content": censored_text,
+                    "content": message_text,
                     "created_at": dm_msg.created_at.isoformat()
                 }
 

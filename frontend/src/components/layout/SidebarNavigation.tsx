@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CalendarDays, MessageSquare, GraduationCap, Map, Trophy, LogOut, Bot, MessageCircle, User as UserIcon, Settings } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, MessageSquare, GraduationCap, Map, Trophy, LogOut, Bot, MessageCircle, Settings, Award, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import clsx from 'clsx';
 
@@ -17,7 +17,9 @@ const SidebarNavigation: React.FC = () => {
     { label: 'Timetable', path: '/timetable', icon: CalendarDays },
     { label: 'Campus Maps', path: '/maps', icon: Map },
     { label: 'Achievement Wall', path: '/achievements', icon: Trophy },
+    { label: 'Clubs Hub', path: '/clubs', icon: Award },
     { label: 'Faculty Directory', path: '/faculty', icon: GraduationCap },
+    { label: 'Congruence', path: '/congruence', icon: Sparkles },
   ];
 
   return (

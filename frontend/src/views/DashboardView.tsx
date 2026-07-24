@@ -1,11 +1,59 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Trophy, Star, Target, Zap, MessageSquare, Calendar, Award } from 'lucide-react';
+import { Trophy, Zap, MessageSquare, Calendar, Sparkles, Bot, X, ChevronRight, ChevronLeft, Map } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const DashboardView: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+
+  useEffect(() => {
+    const hasSeen = localStorage.getItem('beacon_walkthrough_seen');
+    if (!hasSeen && user) {
+      setShowWalkthrough(true);
+    }
+  }, [user]);
+
+  const handleCloseWalkthrough = () => {
+    localStorage.setItem('beacon_walkthrough_seen', 'true');
+    setShowWalkthrough(false);
+  };
+
+  const steps = [
+    {
+      title: "Welcome & XP Leveling System",
+      description: "Track your academic journey! Earn Experience Points (XP) by engaging with mentors, registering for events, and participating in chats. Climb levels as you build your profile.",
+      icon: Zap,
+      iconColor: "text-amber-600 bg-amber-50",
+    },
+    {
+      title: "RAG-Powered Congruence Matching",
+      description: "Need team members for SIH or hackathons? Set up your Congruence profile with skills & portfolios, and search semantically to match the perfect candidates.",
+      icon: Sparkles,
+      iconColor: "text-indigo-600 bg-indigo-50",
+    },
+    {
+      title: "Senior Mentor Hub",
+      description: "Stuck on academic planning, placements, or projects? Connect 1-on-1 with registered 3rd and 4th-year seniors for guidance directly related to your department.",
+      icon: Bot,
+      iconColor: "text-emerald-600 bg-emerald-50",
+    },
+    {
+      title: "Clubs & Dept Chatrooms",
+      description: "Discover upcoming campus hackathons and register for club events in the Clubs Hub. Share thoughts and coordinate with peers instantly in live Department Chatrooms.",
+      icon: MessageSquare,
+      iconColor: "text-blue-600 bg-blue-50",
+    },
+    {
+      title: "Secure Handshake DMs",
+      description: "Direct messages require a mutual handshake request to unlock chat logs. Keep your conversations private, or choose 'Delete Chat' to erase histories permanently.",
+      icon: Trophy,
+      iconColor: "text-purple-600 bg-purple-50",
+    }
+  ];
 
   // Gamification Metrics Logic
   const currentXP = user?.current_xp || 0;
@@ -108,6 +156,79 @@ const DashboardView: React.FC = () => {
           </div>
         ))}
       </div>
+
+      {/* Walkthrough Modal */}
+      {showWalkthrough && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl p-6 relative overflow-hidden animate-in zoom-in-95 duration-200">
+            <button
+              onClick={handleCloseWalkthrough}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-6 pt-4">
+              {/* Step content */}
+              <div className="text-center space-y-4">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto ${steps[currentStep].iconColor} shadow-inner`}>
+                  {React.createElement(steps[currentStep].icon, { className: "w-8 h-8" })}
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-extrabold text-slate-900">{steps[currentStep].title}</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed max-w-xs mx-auto">
+                    {steps[currentStep].description}
+                  </p>
+                </div>
+              </div>
+
+              {/* Indicator dots */}
+              <div className="flex justify-center space-x-1.5">
+                {steps.map((_, idx) => (
+                  <div
+                    key={idx}
+                    className={`h-1.5 rounded-full transition-all ${
+                      idx === currentStep ? 'w-6 bg-indigo-600' : 'w-1.5 bg-slate-200'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {/* Navigation controls */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => currentStep > 0 && setCurrentStep(prev => prev - 1)}
+                  disabled={currentStep === 0}
+                  className="px-3 py-2 text-slate-500 hover:text-slate-700 disabled:opacity-30 text-xs font-bold transition-all cursor-pointer flex items-center space-x-1"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span>Prev</span>
+                </button>
+
+                {currentStep < steps.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(prev => prev + 1)}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center space-x-1"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCloseWalkthrough}
+                    className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-md"
+                  >
+                    Get Started
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

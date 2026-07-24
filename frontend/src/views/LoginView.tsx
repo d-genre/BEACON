@@ -37,40 +37,39 @@ const LoginView: React.FC = () => {
       });
 
       if (authError || !data.session?.access_token) {
-        // Fallback to Backend Direct Login if Supabase throws Network Error / Email Unconfirmed / Rate Limit
-        const directRes = await axios.post(`${baseUrl}/auth/direct_login`, {
-          email: email.trim(),
-          password: password,
-          role: selectedRole
-        });
-
-        await fetchProfile(directRes.data.access_token);
-        navigate('/', { replace: true });
+        setError(authError?.message || "Authentication failed. Please verify your credentials.");
+        setLoading(false);
         return;
       }
 
-      // If Supabase authentication succeeded
-      await fetchProfile(data.session.access_token);
-      navigate('/', { replace: true });
-
-    } catch (err: any) {
+      // 2. Fetch profile from FastAPI backend using Supabase JWT token
       try {
-        // Fallback to direct backend authentication
-        const directRes = await axios.post(`${baseUrl}/auth/direct_login`, {
-          email: email.trim(),
-          password: password,
-          role: selectedRole
-        });
-
-        await fetchProfile(directRes.data.access_token);
-        navigate('/', { replace: true });
-      } catch (directErr: any) {
-        setError(
-          directErr.response?.data?.detail || 
-          err.message || 
-          "Failed to sign in. Please check your college credentials."
-        );
+        await fetchProfile(data.session.access_token);
+      } catch (err: any) {
+        if (err.response?.status === 404) {
+          setError("User profile not found in campus database. Please register your account.");
+        } else {
+          setError(err.response?.data?.detail || "Failed to fetch user profile from backend.");
+        }
+        setLoading(false);
+        return;
       }
+
+      // 3. Synchronize user role in database
+      try {
+        await axios.put(
+          `${baseUrl}/auth/me`,
+          { role: selectedRole },
+          { headers: { Authorization: `Bearer ${data.session.access_token}` } }
+        );
+        await fetchProfile(data.session.access_token);
+      } catch (syncErr) {
+        console.warn("Failed to synchronize user role in DB:", syncErr);
+      }
+
+      navigate('/', { replace: true });
+    } catch (err: any) {
+      setError(err.message || "An unexpected error occurred during sign in.");
     } finally {
       setLoading(false);
     }
