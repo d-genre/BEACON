@@ -9,9 +9,12 @@ try:
 except ImportError:
     pass
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_SQLITE_PATH = os.path.join(BASE_DIR, "beacon.db")
+
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "sqlite:///./beacon.db"
+    f"sqlite:///{DEFAULT_SQLITE_PATH}"
 )
 
 # Fix SQLAlchemy dialect prefix if user passes 'postgres://' instead of 'postgresql://'
@@ -33,7 +36,7 @@ try:
         raise ValueError("SQLite fallback forced")
 except Exception as e:
     print(f"[DATABASE WARNING] Connection to configured database failed ({e}). Falling back to local SQLite!")
-    DATABASE_URL = "sqlite:///./beacon.db"
+    DATABASE_URL = f"sqlite:///{DEFAULT_SQLITE_PATH}"
     engine_kwargs = {"connect_args": {"check_same_thread": False}}
     engine = create_engine(DATABASE_URL, **engine_kwargs)
 
