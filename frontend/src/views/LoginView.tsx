@@ -47,12 +47,38 @@ const LoginView: React.FC = () => {
         await fetchProfile(data.session.access_token);
       } catch (err: any) {
         if (err.response?.status === 404) {
-          setError("User profile not found in campus database. Please register your account.");
+          // Self-healing: if Supabase login is successful but backend profile is missing, auto-create it
+          try {
+            const userObj = data.user || data.session?.user;
+            if (userObj) {
+              const metadata = userObj.user_metadata || {};
+              const registerPayload = {
+                user_id: userObj.id,
+                name: metadata.name || userObj.email?.split('@')[0].replace('.', ' ') || 'User',
+                email: userObj.email,
+                department: metadata.department || 'General',
+                role: selectedRole
+              };
+              
+              // Post to /auth/register on backend
+              await axios.post(`${baseUrl}/auth/register`, registerPayload);
+              
+              // Retry fetching the profile
+              await fetchProfile(data.session.access_token);
+            } else {
+              throw err;
+            }
+          } catch (registerErr: any) {
+            console.error("Auto-registration fallback failed:", registerErr);
+            setError("User profile not found in campus database. Please register your account.");
+            setLoading(false);
+            return;
+          }
         } else {
           setError(err.response?.data?.detail || "Failed to fetch user profile from backend.");
+          setLoading(false);
+          return;
         }
-        setLoading(false);
-        return;
       }
 
       // 3. Synchronize user role in database
