@@ -490,7 +490,7 @@ const DirectMessagesView: React.FC = () => {
                     }`}>
                       <p>{msg.content}</p>
                       <span className={`text-[9px] block mt-1 ${isMe ? 'text-indigo-200 text-right' : 'text-slate-400'}`}>
-                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(msg.created_at.endsWith('Z') || msg.created_at.includes('+') ? msg.created_at : msg.created_at + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     </div>
                   </div>

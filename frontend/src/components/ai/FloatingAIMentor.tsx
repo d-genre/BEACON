@@ -20,6 +20,149 @@ const FloatingAIMentor: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const dragStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  const [btnPosition, setBtnPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isBtnDragging, setIsBtnDragging] = useState(false);
+  const btnDragStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const dragDistance = useRef<number>(0);
+
+  // Initialize button position to bottom-right of screen
+  useEffect(() => {
+    if (!btnPosition && typeof window !== 'undefined') {
+      setBtnPosition({
+        x: window.innerWidth - 180, // roughly where bottom-6 right-6 is
+        y: window.innerHeight - 80,
+      });
+    }
+  }, [btnPosition]);
+
+  // Adjust on screen resize
+  useEffect(() => {
+    const handleResize = () => {
+      setBtnPosition(prev => {
+        if (!prev) return null;
+        const maxX = window.innerWidth - 180;
+        const maxY = window.innerHeight - 80;
+        return {
+          x: Math.min(Math.max(10, prev.x), Math.max(10, maxX)),
+          y: Math.min(Math.max(10, prev.y), Math.max(10, maxY)),
+        };
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleBtnMouseDown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('input') || target.closest('a')) return;
+
+    setIsBtnDragging(true);
+    dragDistance.current = 0;
+    if (btnPosition) {
+      btnDragStart.current = {
+        x: e.clientX - btnPosition.x,
+        y: e.clientY - btnPosition.y,
+      };
+    }
+    e.preventDefault();
+  };
+
+  const handleBtnTouchStart = (e: React.TouchEvent<HTMLButtonElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('input') || target.closest('a')) return;
+
+    setIsBtnDragging(true);
+    dragDistance.current = 0;
+    const touch = e.touches[0];
+    if (btnPosition) {
+      btnDragStart.current = {
+        x: touch.clientX - btnPosition.x,
+        y: touch.clientY - btnPosition.y,
+      };
+    }
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isBtnDragging) return;
+      let newX = e.clientX - btnDragStart.current.x;
+      let newY = e.clientY - btnDragStart.current.y;
+
+      const maxX = window.innerWidth - 160;
+      const maxY = window.innerHeight - 60;
+
+      newX = Math.max(10, Math.min(newX, maxX));
+      newY = Math.max(10, Math.min(newY, maxY));
+
+      if (btnPosition) {
+        const dx = newX - btnPosition.x;
+        const dy = newY - btnPosition.y;
+        dragDistance.current += Math.sqrt(dx * dx + dy * dy);
+      }
+
+      setBtnPosition({ x: newX, y: newY });
+    };
+
+    const handleMouseUp = () => {
+      setIsBtnDragging(false);
+    };
+
+    if (isBtnDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isBtnDragging, btnPosition]);
+
+  useEffect(() => {
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isBtnDragging) return;
+      const touch = e.touches[0];
+      let newX = touch.clientX - btnDragStart.current.x;
+      let newY = touch.clientY - btnDragStart.current.y;
+
+      const maxX = window.innerWidth - 160;
+      const maxY = window.innerHeight - 60;
+
+      newX = Math.max(10, Math.min(newX, maxX));
+      newY = Math.max(10, Math.min(newY, maxY));
+
+      if (btnPosition) {
+        const dx = newX - btnPosition.x;
+        const dy = newY - btnPosition.y;
+        dragDistance.current += Math.sqrt(dx * dx + dy * dy);
+      }
+
+      setBtnPosition({ x: newX, y: newY });
+    };
+
+    const handleTouchEnd = () => {
+      setIsBtnDragging(false);
+    };
+
+    if (isBtnDragging) {
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+    }
+
+    return () => {
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isBtnDragging, btnPosition]);
+
+  const handleButtonClick = () => {
+    if (dragDistance.current > 5) {
+      return;
+    }
+    setIsOpen(true);
+  };
+
   // Initialize position to bottom-right of screen
   useEffect(() => {
     if (!position && typeof window !== 'undefined') {
@@ -213,8 +356,16 @@ const FloatingAIMentor: React.FC = () => {
       {/* FLOATING ACTION BUTTON */}
       {!isOpen && (
         <button
-          onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 px-4 py-3 rounded-full bg-slate-900 text-white shadow-2xl hover:bg-slate-800 hover:scale-105 transition-all z-50 flex items-center space-x-2.5 ring-4 ring-indigo-500/30 group border border-slate-700 cursor-pointer"
+          onClick={handleButtonClick}
+          onMouseDown={handleBtnMouseDown}
+          onTouchStart={handleBtnTouchStart}
+          style={{
+            left: btnPosition ? `${btnPosition.x}px` : 'auto',
+            top: btnPosition ? `${btnPosition.y}px` : 'auto',
+            bottom: btnPosition ? 'auto' : '24px',
+            right: btnPosition ? 'auto' : '24px',
+          }}
+          className={`fixed px-4 py-3 rounded-full bg-slate-900 text-white shadow-2xl hover:bg-slate-800 hover:scale-105 transition-all z-50 flex items-center space-x-2.5 ring-4 ring-indigo-500/30 group border border-slate-700 select-none ${isBtnDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
           title="Ask AI Senior Mentor"
         >
           <div className="relative">
