@@ -4,7 +4,12 @@ import { LayoutDashboard, CalendarDays, MessageSquare, GraduationCap, Map, Troph
 import { useAuth } from '../../context/AuthContext';
 import clsx from 'clsx';
 
-const SidebarNavigation: React.FC = () => {
+interface SidebarNavigationProps {
+  onClose?: () => void;
+  className?: string;
+}
+
+const SidebarNavigation: React.FC<SidebarNavigationProps> = ({ onClose, className }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -23,7 +28,7 @@ const SidebarNavigation: React.FC = () => {
   ];
 
   return (
-    <div className="w-64 bg-slate-900 text-slate-300 flex flex-col min-h-screen shadow-xl hidden md:flex">
+    <div className={className || "w-64 bg-slate-900 text-slate-300 flex flex-col min-h-screen shadow-xl hidden md:flex"}>
       <div className="h-16 flex items-center px-6 border-b border-slate-800 shrink-0">
         <h1 className="text-xl font-black tracking-tight text-white">
           <span className="text-primary-500">B</span>EACON
@@ -38,6 +43,7 @@ const SidebarNavigation: React.FC = () => {
           <NavLink
             key={item.path}
             to={item.path}
+            onClick={onClose}
             className={({ isActive }) => clsx(
               "flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors group",
               isActive 
@@ -53,7 +59,10 @@ const SidebarNavigation: React.FC = () => {
 
       <div className="p-4 border-t border-slate-800 shrink-0">
         <div 
-          onClick={() => navigate('/profile')}
+          onClick={() => {
+            navigate('/profile');
+            if (onClose) onClose();
+          }}
           className="flex items-center space-x-3 px-2 py-3 bg-slate-800/50 hover:bg-slate-800 rounded-lg mb-4 cursor-pointer transition-colors group"
         >
           <div className="w-10 h-10 rounded-full bg-primary-600 group-hover:bg-primary-500 flex items-center justify-center text-white font-bold text-sm shadow-md transition-colors">
@@ -66,7 +75,10 @@ const SidebarNavigation: React.FC = () => {
         </div>
         
         <button 
-          onClick={logout}
+          onClick={() => {
+            logout();
+            if (onClose) onClose();
+          }}
           className="flex items-center w-full space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors cursor-pointer"
         >
           <LogOut className="w-5 h-5" />

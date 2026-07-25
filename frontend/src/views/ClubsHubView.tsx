@@ -257,8 +257,9 @@ const ClubsHubView: React.FC = () => {
 
   const formatEventDate = (dateStr: string) => {
     if (!dateStr) return '';
-    const hasTimezone = dateStr.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(dateStr);
-    const cleanStr = hasTimezone ? dateStr : `${dateStr}Z`;
+    let isoStr = dateStr.includes(' ') ? dateStr.replace(' ', 'T') : dateStr;
+    const hasTimezone = isoStr.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(isoStr);
+    const cleanStr = hasTimezone ? isoStr : `${isoStr}Z`;
     const d = new Date(cleanStr);
     return d.toLocaleDateString('en-US', {
       weekday: 'short',

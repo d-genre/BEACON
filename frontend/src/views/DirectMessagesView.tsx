@@ -490,7 +490,13 @@ const DirectMessagesView: React.FC = () => {
                     }`}>
                       <p>{msg.content}</p>
                       <span className={`text-[9px] block mt-1 ${isMe ? 'text-indigo-200 text-right' : 'text-slate-400'}`}>
-                        {new Date(msg.created_at.endsWith('Z') || msg.created_at.includes('+') ? msg.created_at : msg.created_at + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        {(() => {
+                          if (!msg.created_at) return '';
+                          let isoStr = msg.created_at.includes(' ') ? msg.created_at.replace(' ', 'T') : msg.created_at;
+                          const hasTimezone = isoStr.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(isoStr);
+                          const cleanStr = hasTimezone ? isoStr : `${isoStr}Z`;
+                          return new Date(cleanStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        })()}
                       </span>
                     </div>
                   </div>

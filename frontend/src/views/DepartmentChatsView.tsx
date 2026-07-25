@@ -225,7 +225,13 @@ const DepartmentChatsView: React.FC = () => {
                 {msg.content}
               </div>
               <span className={`text-[10px] text-slate-400 mt-1 ${isMe ? 'mr-1' : 'ml-1'}`}>
-                {new Date(msg.created_at.endsWith('Z') || msg.created_at.includes('+') ? msg.created_at : msg.created_at + 'Z').toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {(() => {
+                  if (!msg.created_at) return '';
+                  let isoStr = msg.created_at.includes(' ') ? msg.created_at.replace(' ', 'T') : msg.created_at;
+                  const hasTimezone = isoStr.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(isoStr);
+                  const cleanStr = hasTimezone ? isoStr : `${isoStr}Z`;
+                  return new Date(cleanStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                })()}
               </span>
             </div>
           );
