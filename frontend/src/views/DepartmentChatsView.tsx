@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Send, Users, AlertTriangle, Info, Copy, CheckCircle2 } from 'lucide-react';
 import axios from 'axios';
+import { getWebSocketUrl } from '../lib/websocket';
 
 interface ChatMessage {
   id: string;
@@ -49,8 +50,7 @@ const DepartmentChatsView: React.FC = () => {
   useEffect(() => {
     if (!token) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//127.0.0.1:8000/chat/ws/${encodeURIComponent(departmentName)}?token=${token}`;
+    const wsUrl = getWebSocketUrl(`/chat/ws/${encodeURIComponent(departmentName)}?token=${token}`);
     
     const socket = new WebSocket(wsUrl);
 

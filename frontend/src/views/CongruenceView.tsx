@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Users, ExternalLink, Send, Plus, X, Globe, GitBranch, Award, CheckCircle2, Search, Sliders } from 'lucide-react';
+import { Sparkles, Users, ExternalLink, Send, X, Globe, GitBranch, Award, CheckCircle2, Search, Sliders } from 'lucide-react';
 import axios from 'axios';
 
 interface ProofOfSkills {
@@ -30,10 +30,8 @@ interface MatchResponseItem {
 }
 
 const CongruenceView: React.FC = () => {
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   const navigate = useNavigate();
-
-  const [myProfile, setMyProfile] = useState<ProfileResponse | null>(null);
   const [showSetupModal, setShowSetupModal] = useState(false);
   
   // Setup Modal Form State
@@ -62,7 +60,6 @@ const CongruenceView: React.FC = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.data) {
-        setMyProfile(res.data);
         // Pre-populate form state
         setOptInStatus(res.data.opt_in_status);
         setSkillsInput(res.data.skills ? res.data.skills.join(', ') : '');
@@ -107,7 +104,6 @@ const CongruenceView: React.FC = () => {
         }
       });
       if (res.status === 200 || res.status === 201) {
-        setMyProfile(res.data);
         setSuccessMsg("Congruence profile updated successfully!");
         setShowSetupModal(false);
         setTimeout(() => setSuccessMsg(null), 4000);

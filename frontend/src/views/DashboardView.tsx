@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Trophy, Zap, MessageSquare, Calendar, Sparkles, Bot, X, ChevronRight, ChevronLeft, Map } from 'lucide-react';
+import { Trophy, Zap, MessageSquare, Calendar, Sparkles, Bot, X, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const DashboardView: React.FC = () => {

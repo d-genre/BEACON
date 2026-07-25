@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { MessageCircle, UserCheck, UserX, Send, Plus, ShieldAlert, AlertCircle, Lock, CheckCircle2, Trash2 } from 'lucide-react';
 import axios from 'axios';
+import { getWebSocketUrl } from '../lib/websocket';
 
 interface DMRequest {
   id: string;
@@ -164,12 +165,7 @@ const DirectMessagesView: React.FC = () => {
     const activeToken = token || localStorage.getItem('beacon_token');
     if (!activeToken || !selectedTargetId) return;
 
-    const rawHost = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
-    const wsHost = rawHost.startsWith('http') 
-      ? rawHost.replace(/^https?:\/\//, '') 
-      : '127.0.0.1:8000';
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${wsHost}/dms/ws/${selectedTargetId}?token=${activeToken}`;
+    const wsUrl = getWebSocketUrl(`/dms/ws/${selectedTargetId}?token=${activeToken}`);
     const socket = new WebSocket(wsUrl);
 
     socket.onopen = () => {
