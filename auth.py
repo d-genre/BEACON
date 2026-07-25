@@ -168,10 +168,41 @@ def get_current_user(
                 db.refresh(user)
 
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User profile not found in campus database. Please register your account."
-        )
+        # Auto-provision user from Supabase JWT payload if not in database
+        user_email = payload.get("email")
+        if user_email:
+            metadata = payload.get("user_metadata", {}) or {}
+            name = metadata.get("name") or metadata.get("full_name") or user_email.split("@")[0].replace(".", " ").title()
+            department = metadata.get("department") or "General"
+            
+            raw_role = metadata.get("role")
+            role = UserRole.STUDENT
+            if raw_role:
+                try:
+                    role = UserRole(raw_role)
+                except ValueError:
+                    pass
+
+            user = User(
+                id=user_id,
+                student_code=f"BCN-{uuid.uuid4().hex[:6].upper()}",
+                name=name.strip(),
+                email=user_email.strip().lower(),
+                password_hash=None,
+                reset_code=None,
+                department=department,
+                role=role,
+                account_status=UserAccountStatus.ACTIVE,
+                report_count=0
+            )
+            db.add(user)
+            db.commit()
+            db.refresh(user)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User profile not found in campus database. Please register your account."
+            )
 
     if user.account_status == UserAccountStatus.BANNED:
         raise HTTPException(

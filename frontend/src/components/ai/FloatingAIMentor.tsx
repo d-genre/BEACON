@@ -16,6 +16,127 @@ const FloatingAIMentor: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Initialize position to bottom-right of screen
+  useEffect(() => {
+    if (!position && typeof window !== 'undefined') {
+      setPosition({
+        x: window.innerWidth - 410, // 390px width + 20px padding
+        y: window.innerHeight - 570, // 550px height + 20px padding
+      });
+    }
+  }, [position]);
+
+  // Adjust on screen resize
+  useEffect(() => {
+    const handleResize = () => {
+      setPosition(prev => {
+        if (!prev) return null;
+        const maxX = window.innerWidth - 410;
+        const maxY = window.innerHeight - 570;
+        return {
+          x: Math.min(Math.max(10, prev.x), Math.max(10, maxX)),
+          y: Math.min(Math.max(10, prev.y), Math.max(10, maxY)),
+        };
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return; // Left click only
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('input') || target.closest('a')) return;
+
+    setIsDragging(true);
+    if (position) {
+      dragStart.current = {
+        x: e.clientX - position.x,
+        y: e.clientY - position.y,
+      };
+    }
+    e.preventDefault();
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('input') || target.closest('a')) return;
+
+    setIsDragging(true);
+    const touch = e.touches[0];
+    if (position) {
+      dragStart.current = {
+        x: touch.clientX - position.x,
+        y: touch.clientY - position.y,
+      };
+    }
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      let newX = e.clientX - dragStart.current.x;
+      let newY = e.clientY - dragStart.current.y;
+
+      const maxX = window.innerWidth - 390 - 10;
+      const maxY = window.innerHeight - 550 - 10;
+
+      newX = Math.max(10, Math.min(newX, maxX));
+      newY = Math.max(10, Math.min(newY, maxY));
+
+      setPosition({ x: newX, y: newY });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging]);
+
+  useEffect(() => {
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!isDragging) return;
+      const touch = e.touches[0];
+      let newX = touch.clientX - dragStart.current.x;
+      let newY = touch.clientY - dragStart.current.y;
+
+      const maxX = window.innerWidth - 390 - 10;
+      const maxY = window.innerHeight - 550 - 10;
+
+      newX = Math.max(10, Math.min(newX, maxX));
+      newY = Math.max(10, Math.min(newY, maxY));
+
+      setPosition({ x: newX, y: newY });
+    };
+
+    const handleTouchEnd = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleTouchEnd);
+    }
+
+    return () => {
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isDragging]);
+
   // Set initial welcome greeting on mount / user change
   useEffect(() => {
     const firstName = user?.name?.split(' ')[0] || 'Junior';
@@ -106,9 +227,21 @@ const FloatingAIMentor: React.FC = () => {
 
       {/* CHAT WIDGET MODAL */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 w-[390px] h-[550px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden z-50 border border-slate-200 animate-in slide-in-from-bottom-5">
+        <div 
+          style={{
+            left: position ? `${position.x}px` : 'auto',
+            top: position ? `${position.y}px` : 'auto',
+            bottom: position ? 'auto' : '24px',
+            right: position ? 'auto' : '24px',
+          }}
+          className={`fixed w-[390px] h-[550px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden z-50 border border-slate-200 ${isDragging ? 'shadow-indigo-500/10 cursor-grabbing' : 'animate-in slide-in-from-bottom-5'}`}
+        >
           {/* Header */}
-          <div className="bg-slate-900 text-white p-4 px-5 flex justify-between items-center shrink-0">
+          <div 
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            className="bg-slate-900 text-white p-4 px-5 flex justify-between items-center shrink-0 cursor-grab select-none active:cursor-grabbing"
+          >
             <div className="flex items-center space-x-3">
               <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md">
                 <Bot className="w-5 h-5" />
