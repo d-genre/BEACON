@@ -320,7 +320,8 @@ const DirectMessagesView: React.FC = () => {
   return (
     <div className="flex h-full bg-slate-50 relative overflow-hidden">
       {/* Sidebar / Conversation List */}
-      <div className="w-80 bg-white border-r border-slate-200 flex flex-col shrink-0">
+      <div className={`bg-white border-r border-slate-200 flex-col shrink-0 w-full md:w-80 ${selectedTargetId ? 'hidden md:flex' : 'flex'}`}>
+
         <div className="p-4 border-b border-slate-200 flex items-center justify-between">
           <h1 className="font-bold text-slate-900 flex items-center gap-2">
             <MessageCircle className="w-5 h-5 text-indigo-600" />
@@ -409,12 +410,23 @@ const DirectMessagesView: React.FC = () => {
       </div>
 
       {/* Main DM Chat Area */}
-      <div className="flex-1 flex flex-col bg-slate-50 relative">
+      <div className={`flex-1 flex-col bg-slate-50 relative ${!selectedTargetId ? 'hidden md:flex' : 'flex w-full'}`}>
         {selectedTargetId ? (
           <>
             {/* Header */}
             <div className="bg-white border-b border-slate-200 p-4 px-6 flex items-center justify-between shrink-0 shadow-xs">
               <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => {
+                    setSelectedTargetId(null);
+                    setSelectedTargetName('');
+                    localStorage.removeItem('active_dm_target_id');
+                    localStorage.removeItem('active_dm_target_name');
+                  }}
+                  className="md:hidden p-2 -ml-2 text-slate-500 hover:text-slate-800 rounded-lg"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
                 <div className="w-10 h-10 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center">
                   {selectedTargetName.charAt(0) || 'U'}
                 </div>

@@ -63,12 +63,9 @@ def get_clubs(db: Session = Depends(get_db)):
     clubs = db.query(Club).all()
     result = []
     for c in clubs:
-        # Filter nested upcoming competitions (event_date >= current time)
-        upcoming_events = [
-            e for e in c.events if e.event_date >= datetime.utcnow()
-        ]
-        # Sort by date ascending
-        upcoming_events.sort(key=lambda x: x.event_date)
+        # Sort competitions by date ascending
+        events = list(c.events)
+        events.sort(key=lambda x: x.event_date)
         
         comps = [
             CompetitionResponse(
@@ -79,7 +76,7 @@ def get_clubs(db: Session = Depends(get_db)):
                 event_date=e.event_date,
                 registration_link=e.registration_link
             )
-            for e in upcoming_events
+            for e in events
         ]
         
         result.append(
@@ -148,9 +145,9 @@ def update_club(
     db.commit()
     db.refresh(club)
     
-    # Return sorted upcoming competitions
-    upcoming_events = [e for e in club.events if e.event_date >= datetime.utcnow()]
-    upcoming_events.sort(key=lambda x: x.event_date)
+    # Return sorted competitions
+    events = list(club.events)
+    events.sort(key=lambda x: x.event_date)
     
     return ClubResponse(
         id=str(club.id),
@@ -166,7 +163,7 @@ def update_club(
                 event_date=e.event_date,
                 registration_link=e.registration_link
             )
-            for e in upcoming_events
+            for e in events
         ]
     )
 

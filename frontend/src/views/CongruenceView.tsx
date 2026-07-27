@@ -30,7 +30,7 @@ interface MatchResponseItem {
 }
 
 const CongruenceView: React.FC = () => {
-  const { token } = useAuth();
+  const { token, addXP } = useAuth();
   const navigate = useNavigate();
   const [showSetupModal, setShowSetupModal] = useState(false);
   
@@ -43,8 +43,11 @@ const CongruenceView: React.FC = () => {
   const [pastAchievements, setPastAchievements] = useState('');
   
   // Search & Match State
-  const [searchQuery, setSearchQuery] = useState('');
-  const [candidates, setCandidates] = useState<MatchResponseItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState(() => localStorage.getItem('beacon_congruence_query') || '');
+  const [candidates, setCandidates] = useState<MatchResponseItem[]>(() => {
+    const cached = localStorage.getItem('beacon_congruence_candidates');
+    return cached ? JSON.parse(cached) : [];
+  });
   const [isSearching, setIsSearching] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -105,6 +108,7 @@ const CongruenceView: React.FC = () => {
       });
       if (res.status === 200 || res.status === 201) {
         setSuccessMsg("Congruence profile updated successfully!");
+        addXP(100, "Updated Congruence Profile");
         setShowSetupModal(false);
         setTimeout(() => setSuccessMsg(null), 4000);
       }
@@ -131,6 +135,8 @@ const CongruenceView: React.FC = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setCandidates(res.data);
+      localStorage.setItem('beacon_congruence_candidates', JSON.stringify(res.data));
+      localStorage.setItem('beacon_congruence_query', searchQuery.trim());
     } catch (err: any) {
       console.error("Error searching candidates:", err);
       setErrorMsg(err.response?.data?.detail || "Failed to process RAG skill-matching.");

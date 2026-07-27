@@ -21,8 +21,11 @@ interface Club {
 
 const ClubsHubView: React.FC = () => {
   const { user, token } = useAuth();
-  const [clubs, setClubs] = useState<Club[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [clubs, setClubs] = useState<Club[]>(() => {
+    const cached = localStorage.getItem('beacon_clubs_cache');
+    return cached ? JSON.parse(cached) : [];
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(!localStorage.getItem('beacon_clubs_cache'));
   const [expandedClubId, setExpandedClubId] = useState<string | null>(null);
 
   // Modals state
@@ -56,6 +59,7 @@ const ClubsHubView: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setClubs(data);
+        localStorage.setItem('beacon_clubs_cache', JSON.stringify(data));
       } else {
         console.error("Failed to load clubs");
       }

@@ -28,7 +28,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50 flex-col md:flex-row">
+    <div className="flex h-screen w-full overflow-hidden bg-slate-50 flex-col md:flex-row">
       {/* Mobile Top Header Bar */}
       <div className="flex items-center justify-between px-4 h-16 bg-slate-900 text-white md:hidden border-b border-slate-800 shrink-0">
         <div className="flex items-center space-x-3">

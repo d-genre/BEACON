@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, CalendarDays, MessageSquare, GraduationCap, Map, Trophy, LogOut, Bot, MessageCircle, Settings, Award, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import clsx from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 interface SidebarNavigationProps {
   onClose?: () => void;
@@ -28,7 +29,7 @@ const SidebarNavigation: React.FC<SidebarNavigationProps> = ({ onClose, classNam
   ];
 
   return (
-    <div className={className || "w-64 bg-slate-900 text-slate-300 flex flex-col min-h-screen shadow-xl hidden md:flex"}>
+    <div className={twMerge("w-64 bg-slate-900 text-slate-300 flex flex-col min-h-screen shadow-xl hidden md:flex", className)}>
       <div className="h-16 flex items-center px-6 border-b border-slate-800 shrink-0">
         <h1 className="text-xl font-black tracking-tight text-white">
           <span className="text-primary-500">B</span>EACON

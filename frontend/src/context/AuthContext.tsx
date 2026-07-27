@@ -24,12 +24,16 @@ interface AuthContextType {
   logout: () => Promise<void>;
   fetchProfile: (accessToken: string) => Promise<User | null>;
   refreshProfile: () => Promise<void>;
+  addXP: (amount: number, reason: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    const cached = localStorage.getItem('beacon_user_cache');
+    return cached ? JSON.parse(cached) : null;
+  });
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('beacon_token'));
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -41,6 +45,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         headers: { Authorization: `Bearer ${accessToken}` }
       });
       setUser(response.data);
+      localStorage.setItem('beacon_user_cache', JSON.stringify(response.data));
       setToken(accessToken);
       localStorage.setItem('beacon_token', accessToken);
       return response.data;
@@ -107,6 +112,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
+  const addXP = (amount: number, reason: string) => {
+    if (!user) return;
+    const updatedUser = { ...user, current_xp: user.current_xp + amount };
+    setUser(updatedUser);
+    localStorage.setItem('beacon_user_cache', JSON.stringify(updatedUser));
+    
+    // Attempt backend update if route exists, fail silently
+    if (token) {
+      axios.post(`${baseUrl}/auth/xp`, { amount, reason }, {
+        headers: { Authorization: `Bearer ${token}` }
+      }).catch(() => {});
+    }
+    
+    // Simple toast notification
+    const toast = document.createElement('div');
+    toast.className = 'fixed bottom-4 right-4 bg-amber-500 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-3 z-50 animate-in slide-in-from-bottom-5 font-bold text-sm';
+    toast.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg> +${amount} XP: ${reason}`;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('fade-out', 'opacity-0', 'transition-opacity', 'duration-500');
+      setTimeout(() => toast.remove(), 500);
+    }, 3000);
+  };
+
   const logout = async () => {
     try {
       await supabase.auth.signOut();
@@ -121,7 +150,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, isAuthenticated: !!user && !!token, logout, fetchProfile, refreshProfile }}>
+    <AuthContext.Provider value={{ user, token, loading, isAuthenticated: !!user && !!token, logout, fetchProfile, refreshProfile, addXP }}>
       {children}
     </AuthContext.Provider>
   );

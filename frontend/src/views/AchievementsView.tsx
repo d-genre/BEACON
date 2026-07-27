@@ -17,8 +17,11 @@ const CATEGORIES = ["All", "Hackathons", "Research & Patents", "Placements", "Un
 
 const AchievementsView: React.FC = () => {
   const { user, token } = useAuth();
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [achievements, setAchievements] = useState<Achievement[]>(() => {
+    const cached = localStorage.getItem('beacon_achievements_cache');
+    return cached ? JSON.parse(cached) : [];
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(!localStorage.getItem('beacon_achievements_cache'));
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -126,6 +129,7 @@ const AchievementsView: React.FC = () => {
       if (res.ok) {
         const data = await res.json();
         setAchievements(data);
+        localStorage.setItem('beacon_achievements_cache', JSON.stringify(data));
       } else {
         console.error("Failed to load achievements");
       }

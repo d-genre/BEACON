@@ -14,7 +14,7 @@ interface TimetableSlot {
 }
 
 const TimetableView: React.FC = () => {
-  const { token } = useAuth();
+  const { token, addXP } = useAuth();
   const [schedule, setSchedule] = useState<TimetableSlot[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -69,6 +69,7 @@ const TimetableView: React.FC = () => {
 
       setSchedule(response.data.schedule);
       setSuccessMsg(`Timetable loaded! You can verify or edit any class subject and room number below.`);
+      addXP(50, "Uploaded Timetable");
     } catch (err: any) {
       setError(err.response?.data?.detail || "Failed to process file. You can enter your class schedule using the Grid Editor below.");
     } finally {
