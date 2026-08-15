@@ -165,73 +165,94 @@ const DirectMessagesView: React.FC = () => {
     const activeToken = token || localStorage.getItem('beacon_token');
     if (!activeToken || !selectedTargetId) return;
 
-    const wsUrl = getWebSocketUrl(`/dms/ws/${selectedTargetId}?token=${activeToken}`);
-    const socket = new WebSocket(wsUrl);
+    let socket: WebSocket | null = null;
+    let reconnectTimeout: any = null;
+    let isCleanup = false;
 
-    socket.onopen = () => {
-      setError(null);
-    };
+    const connect = () => {
+      if (isCleanup) return;
 
-    socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'DIRECT_MESSAGE' || data.type === 'MESSAGE') {
-          // Only append message to screen if it matches the current conversation view
-          const isFromSelectedTarget = data.sender_id === selectedTargetId;
-          const isToSelectedTarget = data.sender_id === user?.id && data.receiver_id === selectedTargetId;
+      const wsUrl = getWebSocketUrl(`/dms/ws/${selectedTargetId}?token=${activeToken}`);
+      socket = new WebSocket(wsUrl);
 
-          if (isFromSelectedTarget || isToSelectedTarget) {
-            const newMsg: DirectMessage = {
-              id: data.id || `dm-${Date.now()}`,
-              sender_id: data.sender_id,
-              sender_name: data.sender_name || 'User',
-              receiver_id: data.receiver_id || selectedTargetId,
-              content: data.content,
-              created_at: data.created_at || new Date().toISOString()
-            };
+      socket.onopen = () => {
+        setError(null);
+      };
 
-            setMessages(prev => {
-              if (prev.some(m => m.id === newMsg.id)) return prev;
-              return [...prev, newMsg];
-            });
-          } else {
-            // Received a message from a different user, refresh contacts/requests list
-            fetchData();
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'DIRECT_MESSAGE' || data.type === 'MESSAGE') {
+            // Only append message to screen if it matches the current conversation view
+            const isFromSelectedTarget = data.sender_id === selectedTargetId;
+            const isToSelectedTarget = data.sender_id === user?.id && data.receiver_id === selectedTargetId;
+
+            if (isFromSelectedTarget || isToSelectedTarget) {
+              const newMsg: DirectMessage = {
+                id: data.id || `dm-${Date.now()}`,
+                sender_id: data.sender_id,
+                sender_name: data.sender_name || 'User',
+                receiver_id: data.receiver_id || selectedTargetId,
+                content: data.content,
+                created_at: data.created_at || new Date().toISOString()
+              };
+
+              setMessages(prev => {
+                if (prev.some(m => m.id === newMsg.id)) return prev;
+                return [...prev, newMsg];
+              });
+            } else {
+              // Received a message from a different user, refresh contacts/requests list
+              fetchData();
+            }
+          } else if (data.type === 'ERROR') {
+            setError(data.message);
+            if (data.message && data.message.includes("Message blocked")) {
+              setBlockedMessageWarning({
+                message: data.message,
+                remainingWarnings: data.remaining_warnings !== undefined ? data.remaining_warnings : 20
+              });
+              setTimeout(() => {
+                setBlockedMessageWarning(null);
+              }, 8000);
+            }
+          } else if (data.type === 'ACCOUNT_STATUS_UPDATE') {
+            setError(data.message);
+            refreshProfile();
           }
-        } else if (data.type === 'ERROR') {
-          setError(data.message);
-          if (data.message && data.message.includes("Message blocked")) {
-            setBlockedMessageWarning({
-              message: data.message,
-              remainingWarnings: data.remaining_warnings !== undefined ? data.remaining_warnings : 20
-            });
-            setTimeout(() => {
-              setBlockedMessageWarning(null);
-            }, 8000);
-          }
-        } else if (data.type === 'ACCOUNT_STATUS_UPDATE') {
-          setError(data.message);
-          refreshProfile();
+        } catch (err) {
+          console.error("WS Parse error", err);
         }
-      } catch (err) {
-        console.error("WS Parse error", err);
-      }
+      };
+
+      socket.onerror = () => {
+        setError("WebSocket connection error. Retrying in 3 seconds...");
+      };
+
+      socket.onclose = (event) => {
+        if (event.code === 1008) {
+          setError(event.reason || "DM connection closed due to policy violation or permanent block.");
+          return;
+        }
+        if (!isCleanup) {
+          console.log("DM WebSocket disconnected. Retrying in 3 seconds...");
+          reconnectTimeout = setTimeout(connect, 3000);
+        }
+      };
+
+      setWs(socket);
     };
 
-    socket.onerror = () => {
-      setError("WebSocket connection error. Make sure the backend is running.");
-    };
-
-    socket.onclose = (event) => {
-      if (event.code === 1008) {
-        setError(event.reason || "DM connection closed due to policy violation or permanent block.");
-      }
-    };
-
-    setWs(socket);
+    connect();
 
     return () => {
-      socket.close();
+      isCleanup = true;
+      if (socket) {
+        socket.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
     };
   }, [selectedTargetId, token]);
 

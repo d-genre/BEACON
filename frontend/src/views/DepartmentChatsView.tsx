@@ -50,56 +50,76 @@ const DepartmentChatsView: React.FC = () => {
   useEffect(() => {
     if (!token) return;
 
-    const wsUrl = getWebSocketUrl(`/chat/ws/${encodeURIComponent(departmentName)}?token=${token}`);
-    
-    const socket = new WebSocket(wsUrl);
+    let socket: WebSocket | null = null;
+    let reconnectTimeout: any = null;
+    let isCleanup = false;
 
-    socket.onopen = () => {
-      setIsConnected(true);
-      setError(null);
-    };
+    const connect = () => {
+      if (isCleanup) return;
 
-    socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'MESSAGE') {
-          setMessages(prev => [...prev, data]);
-        } else if (data.type === 'ERROR') {
-          setError(data.message);
-          if (data.message && data.message.includes("Message blocked")) {
-            setBlockedMessageWarning({
-              message: data.message,
-              remainingWarnings: data.remaining_warnings !== undefined ? data.remaining_warnings : 20
-            });
-            setTimeout(() => {
-              setBlockedMessageWarning(null);
-            }, 8000);
+      const wsUrl = getWebSocketUrl(`/chat/ws/${encodeURIComponent(departmentName)}?token=${token}`);
+      socket = new WebSocket(wsUrl);
+
+      socket.onopen = () => {
+        setIsConnected(true);
+        setError(null);
+      };
+
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'MESSAGE') {
+            setMessages(prev => [...prev, data]);
+          } else if (data.type === 'ERROR') {
+            setError(data.message);
+            if (data.message && data.message.includes("Message blocked")) {
+              setBlockedMessageWarning({
+                message: data.message,
+                remainingWarnings: data.remaining_warnings !== undefined ? data.remaining_warnings : 20
+              });
+              setTimeout(() => {
+                setBlockedMessageWarning(null);
+              }, 8000);
+            }
+          } else if (data.type === 'ACCOUNT_STATUS_UPDATE') {
+            setError(data.message);
+            refreshProfile();
           }
-        } else if (data.type === 'ACCOUNT_STATUS_UPDATE') {
-          setError(data.message);
-          refreshProfile();
+        } catch (err) {
+          console.error("Failed to parse WS message", err);
         }
-      } catch (err) {
-        console.error("Failed to parse WS message", err);
-      }
+      };
+
+      socket.onclose = (event) => {
+        setIsConnected(false);
+        if (event.code === 1008) {
+          setError(event.reason || "Connection rejected due to policy violation.");
+          return;
+        }
+        if (!isCleanup) {
+          console.log("WebSocket disconnected. Retrying connection in 3 seconds...");
+          reconnectTimeout = setTimeout(connect, 3000);
+        }
+      };
+
+      socket.onerror = () => {
+        setIsConnected(false);
+        setError("WebSocket connection error. Retrying in 3 seconds...");
+      };
+
+      setWs(socket);
     };
 
-    socket.onclose = (event) => {
-      setIsConnected(false);
-      if (event.code === 1008) {
-        setError(event.reason || "Connection rejected due to policy violation.");
-      }
-    };
-
-    socket.onerror = () => {
-      setIsConnected(false);
-      setError("WebSocket connection error. Make sure the backend is running and the department room is seeded.");
-    };
-
-    setWs(socket);
+    connect();
 
     return () => {
-      socket.close();
+      isCleanup = true;
+      if (socket) {
+        socket.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
     };
   }, [departmentName, token]);
 
