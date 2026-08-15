@@ -21,6 +21,10 @@ export function getWebSocketUrl(path: string): string {
     return `${absoluteProtocol}//${cleanHost}${cleanPath}`;
   } else {
     // VITE_API_BASE_URL is relative (e.g. /api or empty)
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocal) {
+      return `${wsProtocol}//127.0.0.1:8000${cleanPath}`;
+    }
     const host = window.location.host;
     // Remove any trailing slash from rawUrl
     const cleanBaseUrl = rawUrl.endsWith('/') ? rawUrl.slice(0, -1) : rawUrl;

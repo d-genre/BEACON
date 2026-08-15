@@ -2,13 +2,39 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Trophy, Zap, MessageSquare, Calendar, Sparkles, Bot, X, ChevronRight, ChevronLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 
 const DashboardView: React.FC = () => {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
 
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const [tasks, setTasks] = useState<{
+    timetable_uploaded: boolean;
+    congruence_profile_setup: boolean;
+    chat_messages_count: number;
+    dm_connections_count: number;
+  } | null>(null);
+
+  useEffect(() => {
+    const fetchTasks = async () => {
+      const activeToken = token || localStorage.getItem('beacon_token');
+      if (!activeToken) return;
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+        const res = await axios.get(`${baseUrl}/auth/tasks`, {
+          headers: { Authorization: `Bearer ${activeToken}` }
+        });
+        setTasks(res.data);
+      } catch (err) {
+        console.error("Failed to fetch user tasks status:", err);
+      }
+    };
+    if (user) {
+      fetchTasks();
+    }
+  }, [user, token]);
 
   useEffect(() => {
     const hasSeen = localStorage.getItem('beacon_walkthrough_seen');
@@ -85,7 +111,8 @@ const DashboardView: React.FC = () => {
   ];
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8">
+      <div className="max-w-6xl mx-auto space-y-8">
       {/* Welcome Banner */}
       <div className="bg-slate-900 rounded-3xl p-8 shadow-xl text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary-500 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"></div>
@@ -136,6 +163,119 @@ const DashboardView: React.FC = () => {
           </div>
         </div>
         <p className="text-xs font-semibold text-primary-600 text-right">{1000 - currentXP} XP to Level 2!</p>
+      </div>
+
+      {/* XP Quests & Tasks Checklist */}
+      <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-4">
+        <div>
+          <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-amber-500" />
+            Beacon XP Quests & Tasks
+          </h3>
+          <p className="text-xs text-slate-500 mt-1">Complete activities across the platform to level up your score.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Quest 1 */}
+          <div className={`p-4 rounded-2xl border transition-all ${tasks?.timetable_uploaded ? 'bg-green-50/40 border-green-200' : 'bg-slate-50/50 border-slate-200'}`}>
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                  {tasks?.timetable_uploaded ? (
+                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  ) : (
+                    <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                  )}
+                  Initialize Your Schedule
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-1">Upload your timetable image or PDF to the AI Vision Parser.</p>
+              </div>
+              <span className="text-[11px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md shrink-0">+50 XP</span>
+            </div>
+            <div className="mt-3 flex justify-between items-center">
+              <span className={`text-[10px] font-bold ${tasks?.timetable_uploaded ? 'text-green-600' : 'text-slate-500'}`}>
+                {tasks?.timetable_uploaded ? '✓ Completed' : 'Pending'}
+              </span>
+              {!tasks?.timetable_uploaded && (
+                <button onClick={() => navigate('/timetable')} className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer">
+                  Go to Timetable →
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Quest 2 */}
+          <div className={`p-4 rounded-2xl border transition-all ${tasks?.congruence_profile_setup ? 'bg-green-50/40 border-green-200' : 'bg-slate-50/50 border-slate-200'}`}>
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                  {tasks?.congruence_profile_setup ? (
+                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  ) : (
+                    <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                  )}
+                  Build Your Congruence Profile
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-1">Submit your skills & portfolio to find matching team members.</p>
+              </div>
+              <span className="text-[11px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md shrink-0">+100 XP</span>
+            </div>
+            <div className="mt-3 flex justify-between items-center">
+              <span className={`text-[10px] font-bold ${tasks?.congruence_profile_setup ? 'text-green-600' : 'text-slate-500'}`}>
+                {tasks?.congruence_profile_setup ? '✓ Completed' : 'Pending'}
+              </span>
+              {!tasks?.congruence_profile_setup && (
+                <button onClick={() => navigate('/congruence')} className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer">
+                  Go to Congruence →
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Quest 3 */}
+          <div className="p-4 rounded-2xl border bg-slate-50/50 border-slate-200 transition-all">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                  Engage in Department Chats
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-1">Participate in live discussions with your department peers.</p>
+              </div>
+              <span className="text-[11px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md shrink-0">+5 XP / msg</span>
+            </div>
+            <div className="mt-3 flex justify-between items-center">
+              <span className="text-[10px] font-bold text-slate-600">
+                Messages sent: {tasks?.chat_messages_count || 0} ({((tasks?.chat_messages_count || 0) * 5)} XP earned)
+              </span>
+              <button onClick={() => navigate('/chats')} className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer">
+                Open Chatroom →
+              </button>
+            </div>
+          </div>
+
+          {/* Quest 4 */}
+          <div className="p-4 rounded-2xl border bg-slate-50/50 border-slate-200 transition-all">
+            <div className="flex justify-between items-start">
+              <div>
+                <h4 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                  DM Connections (Handshakes)
+                </h4>
+                <p className="text-[11px] text-slate-500 mt-1">Establish accepted 1-on-1 chats with mentors or peers.</p>
+              </div>
+              <span className="text-[11px] font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded-md shrink-0">Tracked</span>
+            </div>
+            <div className="mt-3 flex justify-between items-center">
+              <span className="text-[10px] font-bold text-slate-600">
+                Accepted DMs: {tasks?.dm_connections_count || 0}
+              </span>
+              <button onClick={() => navigate('/dms')} className="text-[10px] font-bold text-indigo-600 hover:underline cursor-pointer">
+                Open Messages →
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Quick Action Cards */}

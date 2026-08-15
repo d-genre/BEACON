@@ -163,7 +163,8 @@ const CongruenceView: React.FC = () => {
   };
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8">
+      <div className="max-w-6xl mx-auto space-y-8">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-indigo-900 via-indigo-955 to-slate-900 rounded-3xl p-6 md:p-8 shadow-xl text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
@@ -524,6 +525,7 @@ const CongruenceView: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

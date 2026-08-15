@@ -140,7 +140,8 @@ const TimetableView: React.FC = () => {
   }, {} as Record<string, TimetableSlot[]>);
 
   return (
-    <div className="p-4 md:p-8 max-w-6xl mx-auto space-y-8">
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8">
+      <div className="max-w-5xl mx-auto space-y-8 pb-12">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -424,6 +425,7 @@ const TimetableView: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

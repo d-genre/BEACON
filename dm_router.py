@@ -519,17 +519,30 @@ async def websocket_direct_messaging(
         # 1. Authenticate Token
         try:
             try:
+                import base64
+                padded_secret = SUPABASE_JWT_SECRET
+                if len(padded_secret) % 4 != 0:
+                    padded_secret += "=" * (4 - len(padded_secret) % 4)
+                secret_bytes = base64.b64decode(padded_secret)
                 payload = jwt.decode(
                     token,
-                    SUPABASE_JWT_SECRET,
+                    secret_bytes,
                     algorithms=["HS256"],
                     options={"verify_aud": False}
                 )
             except Exception:
-                payload = jwt.decode(
-                    token,
-                    options={"verify_signature": False, "verify_aud": False}
-                )
+                try:
+                    payload = jwt.decode(
+                        token,
+                        SUPABASE_JWT_SECRET,
+                        algorithms=["HS256"],
+                        options={"verify_aud": False}
+                    )
+                except Exception:
+                    payload = jwt.decode(
+                        token,
+                        options={"verify_signature": False, "verify_aud": False}
+                    )
             sender_id = uuid.UUID(payload["sub"])
         except Exception:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid authentication token")

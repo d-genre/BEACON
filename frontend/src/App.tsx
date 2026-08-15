@@ -66,7 +66,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 <span className="sr-only">Close sidebar</span>
-                <X className="h-6 h-6" aria-hidden="true" />
+                <X className="h-6 w-6" aria-hidden="true" />
               </button>
             </div>
 
@@ -82,7 +82,7 @@ const AppLayout = ({ children }: { children: React.ReactNode }) => {
       )}
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto relative min-w-0">
+      <main className="flex-1 flex flex-col min-h-0 relative min-w-0">
         {children}
       </main>
 

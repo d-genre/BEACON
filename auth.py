@@ -20,6 +20,15 @@ COLLEGE_EMAIL_REGEX = r"^[a-zA-Z0-9._%+-]+@saranathan\.ac\.in$"
 
 # --- Schemas ---
 
+class AddXPRequest(BaseModel):
+    amount: int
+    reason: str
+
+class AwardXPRequest(BaseModel):
+    student_id: uuid.UUID
+    amount: int
+    reason: str
+
 class UserRegisterRequest(BaseModel):
     user_id: uuid.UUID = Field(..., description="Supabase auth user UUID")
     name: str = Field(..., example="John Doe")
@@ -145,8 +154,16 @@ def get_current_user(
             public_key = jwt.algorithms.ECAlgorithm.from_jwk(key_data)
             payload = jwt.decode(token, public_key, algorithms=["ES256"], options={"verify_aud": False})
         else:
-            # Fallback to HS256 using local secret
-            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
+            # Fallback to HS256 using local secret (which can be base64 encoded)
+            import base64
+            try:
+                padded_secret = SUPABASE_JWT_SECRET
+                if len(padded_secret) % 4 != 0:
+                    padded_secret += "=" * (4 - len(padded_secret) % 4)
+                secret_bytes = base64.b64decode(padded_secret)
+                payload = jwt.decode(token, secret_bytes, algorithms=["HS256"], options={"verify_aud": False})
+            except Exception:
+                payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
             
         user_id = uuid.UUID(payload["sub"])
     except Exception as e:
@@ -244,12 +261,10 @@ def register_user(
     existing_by_email = db.query(User).filter(func.lower(User.email) == email_clean).first()
     if existing_by_email:
         if existing_by_email.id != user_id:
-            # If the user was re-created in Supabase (has a different UUID now), delete the old profile row
-            db.delete(existing_by_email)
+            existing_by_email.id = user_id
             db.commit()
-        else:
-            # If UUID matches, they are already registered. Just return the profile.
-            return existing_by_email
+            db.refresh(existing_by_email)
+        return existing_by_email
 
     new_user = User(
         id=user_id,
@@ -302,3 +317,75 @@ def delete_my_profile(
     db.delete(current_user)
     db.commit()
     return {"message": "User profile and all associated data deleted successfully."}
+
+
+@router.post("/xp", response_model=UserResponse)
+def add_user_xp(
+    req: AddXPRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Saves earned XP to database."""
+    current_user.current_xp += req.amount
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.get("/tasks")
+def get_user_tasks(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Dynamic checks for user quests & tasks status."""
+    from models import StudentTimetable, CongruenceProfile, ChatMessage, DMRequest
+    
+    # 1. Timetable uploaded
+    timetable_count = db.query(StudentTimetable).filter(StudentTimetable.student_id == current_user.id).count()
+    
+    # 2. Congruence Profile completed
+    congruence_exists = db.query(CongruenceProfile).filter(CongruenceProfile.user_id == current_user.id).first() is not None
+    
+    # 3. Chat messages sent
+    chat_count = db.query(ChatMessage).filter(ChatMessage.sender_id == current_user.id).count()
+    
+    # 4. DM Handshakes accepted
+    dm_count = db.query(DMRequest).filter(
+        ((DMRequest.sender_id == current_user.id) | (DMRequest.receiver_id == current_user.id)),
+        DMRequest.status == "ACCEPTED"
+    ).count()
+    
+    return {
+        "timetable_uploaded": timetable_count > 0,
+        "congruence_profile_setup": congruence_exists,
+        "chat_messages_count": chat_count,
+        "dm_connections_count": dm_count
+    }
+
+
+@router.post("/award-xp")
+def award_student_xp(
+    req: AwardXPRequest,
+    current_user: User = Depends(require_roles([UserRole.FACULTY_ADMIN, UserRole.CLUB_ADMIN])),
+    db: Session = Depends(get_db)
+):
+    """Allows Faculty/Club Admins to award custom XP to students."""
+    student = db.query(User).filter(User.id == req.student_id).first()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found."
+        )
+    student.current_xp += req.amount
+    db.commit()
+    db.refresh(student)
+    return {"message": f"Successfully awarded {req.amount} XP to {student.name}."}
+
+
+@router.get("/users", response_model=List[UserResponse])
+def list_all_users(
+    current_user: User = Depends(require_roles([UserRole.FACULTY_ADMIN, UserRole.CLUB_ADMIN])),
+    db: Session = Depends(get_db)
+):
+    """Admin endpoint to list all registered users (students/admins) to manage or award XP."""
+    return db.query(User).all()

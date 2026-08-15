@@ -380,12 +380,12 @@ const FloatingAIMentor: React.FC = () => {
       {isOpen && (
         <div 
           style={{
-            left: position ? `${position.x}px` : 'auto',
-            top: position ? `${position.y}px` : 'auto',
-            bottom: position ? 'auto' : '24px',
-            right: position ? 'auto' : '24px',
+            left: position && typeof window !== 'undefined' && window.innerWidth > 640 ? `${position.x}px` : 'auto',
+            top: position && typeof window !== 'undefined' && window.innerWidth > 640 ? `${position.y}px` : 'auto',
+            bottom: position && typeof window !== 'undefined' && window.innerWidth > 640 ? 'auto' : '24px',
+            right: position && typeof window !== 'undefined' && window.innerWidth > 640 ? 'auto' : '16px',
           }}
-          className={`fixed w-[390px] h-[550px] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden z-50 border border-slate-200 ${isDragging ? 'shadow-indigo-500/10 cursor-grabbing' : 'animate-in slide-in-from-bottom-5'}`}
+          className={`fixed w-full sm:w-[390px] max-w-[calc(100vw-32px)] h-[550px] max-h-[85vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden z-50 border border-slate-200 ${isDragging ? 'shadow-indigo-500/10 cursor-grabbing' : 'animate-in slide-in-from-bottom-5'}`}
         >
           {/* Header */}
           <div 

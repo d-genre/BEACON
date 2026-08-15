@@ -23,6 +23,69 @@ const ProfileView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Admin Award XP states
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const [awardAmount, setAwardAmount] = useState<number>(50);
+  const [awardReason, setAwardReason] = useState<string>('');
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminSuccess, setAdminSuccess] = useState<string | null>(null);
+  const [adminError, setAdminError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const activeToken = token || localStorage.getItem('beacon_token');
+      if (!activeToken || !user) return;
+      if (user.role !== 'FACULTY_ADMIN' && user.role !== 'CLUB_ADMIN') return;
+      try {
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+        const res = await axios.get(`${baseUrl}/auth/users`, {
+          headers: { Authorization: `Bearer ${activeToken}` }
+        });
+        const students = res.data.filter((u: any) => u.role === 'STUDENT');
+        setAllUsers(students);
+        if (students.length > 0) {
+          setSelectedStudentId(students[0].id);
+        }
+      } catch (err) {
+        console.error("Failed to fetch users list for admin:", err);
+      }
+    };
+    fetchUsers();
+  }, [user, token]);
+
+  const handleAwardXP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdminError(null);
+    setAdminSuccess(null);
+    if (!selectedStudentId) {
+      setAdminError("Please select a student first.");
+      return;
+    }
+
+    const activeToken = token || localStorage.getItem('beacon_token');
+    if (!activeToken) return;
+
+    setAdminLoading(true);
+    try {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+      const res = await axios.post(`${baseUrl}/auth/award-xp`, {
+        student_id: selectedStudentId,
+        amount: Number(awardAmount),
+        reason: awardReason
+      }, {
+        headers: { Authorization: `Bearer ${activeToken}` }
+      });
+      setAdminSuccess(res.data.message || `Successfully awarded ${awardAmount} XP!`);
+      setAwardReason('');
+      refreshProfile();
+    } catch (err: any) {
+      setAdminError(err.response?.data?.detail || "Failed to award XP. Try again.");
+    } finally {
+      setAdminLoading(false);
+    }
+  };
   const [copied, setCopied] = useState(false);
 
   // Change Password State
@@ -136,7 +199,8 @@ const ProfileView: React.FC = () => {
   if (!user) return null;
 
   return (
-    <div className="p-4 md:p-8 max-w-4xl mx-auto space-y-8">
+    <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8">
+      <div className="max-w-4xl mx-auto space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
@@ -416,7 +480,95 @@ const ProfileView: React.FC = () => {
               </div>
             </div>
           )}
+      {/* Admin Panel: Award XP */}
+      {user && (user.role === 'FACULTY_ADMIN' || user.role === 'CLUB_ADMIN') && (
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
+          <div className="border-b border-slate-100 pb-3">
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <Zap className="h-6 w-6 text-amber-500 fill-amber-400" />
+              Admin Panel: Award Custom Student XP
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">Select a student and distribute official academic/extracurricular activity points.</p>
+          </div>
+
+          {adminSuccess && (
+            <div className="p-4 rounded-xl bg-green-50 border border-green-200 text-green-700 font-semibold text-xs flex items-center gap-2 shadow-sm animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+              {adminSuccess}
+            </div>
+          )}
+
+          {adminError && (
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-700 font-semibold text-xs flex items-center gap-2 shadow-sm animate-in fade-in">
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+              {adminError}
+            </div>
+          )}
+
+          <form onSubmit={handleAwardXP} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Select Student</label>
+                <select
+                  value={selectedStudentId}
+                  onChange={(e) => setSelectedStudentId(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                >
+                  {allUsers.length === 0 ? (
+                    <option value="">No students registered yet</option>
+                  ) : (
+                    allUsers.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.email}) - {u.student_code}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">XP Amount</label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  max={1000}
+                  value={awardAmount}
+                  onChange={(e) => setAwardAmount(Number(e.target.value))}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">Reason / Contribution Description</label>
+              <input
+                type="text"
+                required
+                value={awardReason}
+                onChange={(e) => setAwardReason(e.target.value)}
+                placeholder="e.g. Won 1st place in Department Coding Contest"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={adminLoading || !selectedStudentId}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-5 rounded-xl shadow-md transition-all flex items-center justify-center space-x-2 text-xs cursor-pointer disabled:opacity-50"
+            >
+              {adminLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Awarding Points...</span>
+                </>
+              ) : (
+                <span>Award {awardAmount} XP</span>
+              )}
+            </button>
+          </form>
         </div>
+      )}
       </div>
     </div>
   );
