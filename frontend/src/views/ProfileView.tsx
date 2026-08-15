@@ -480,6 +480,9 @@ const ProfileView: React.FC = () => {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
       {/* Admin Panel: Award XP */}
       {user && (user.role === 'FACULTY_ADMIN' || user.role === 'CLUB_ADMIN') && (
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
