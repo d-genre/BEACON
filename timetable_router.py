@@ -92,6 +92,13 @@ async def upload_and_parse_timetable(
             detail="Could not extract schedule slots from document. Please ensure text is clear."
         )
 
+    # Check if this is the first upload to reward +50 XP
+    existing_timetable_count = db.query(StudentTimetable).filter(
+        StudentTimetable.student_id == current_user.id
+    ).count()
+    if existing_timetable_count == 0:
+        current_user.current_xp += 50
+
     # Archive existing active timetables for this user
     db.query(StudentTimetable).filter(
         StudentTimetable.student_id == current_user.id,

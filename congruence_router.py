@@ -153,6 +153,8 @@ def create_or_update_profile(
         profile.past_achievements_summary = req.past_achievements_summary
         profile.embedding_vector = embedding
     else:
+        # First time profile setup rewards +100 XP
+        current_user.current_xp += 100
         profile = CongruenceProfile(
             id=uuid.uuid4(),
             user_id=current_user.id,

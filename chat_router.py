@@ -13,6 +13,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -212,21 +213,21 @@ async def websocket_department_chat(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid authentication token")
             return
 
-        user = db.query(User).filter(User.id == user_id).first()
+        user = await run_in_threadpool(db.query(User).filter(User.id == user_id).first)
         if not user:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="User profile not found")
             return
 
         # Check department room (Auto-create if not present)
-        room = db.query(ChatRoom).filter(ChatRoom.department_name == department_name).first()
+        room = await run_in_threadpool(db.query(ChatRoom).filter(ChatRoom.department_name == department_name).first)
         if not room:
             room = ChatRoom(
                 department_name=department_name,
                 description=f"Official real-time discussion hub for {department_name} freshers and faculty."
             )
-            db.add(room)
-            db.commit()
-            db.refresh(room)
+            await run_in_threadpool(db.add, room)
+            await run_in_threadpool(db.commit)
+            await run_in_threadpool(db.refresh, room)
 
         # Check BANNED status - Strict revocation
         if user.account_status == UserAccountStatus.BANNED:
@@ -252,7 +253,7 @@ async def websocket_department_chat(
                     continue
 
                 # Refresh user status from DB
-                db.refresh(user)
+                await run_in_threadpool(db.refresh, user)
 
                 # Check MUTED / BANNED status dynamically before processing message
                 if user.account_status in (UserAccountStatus.MUTED, UserAccountStatus.BANNED):
@@ -266,8 +267,8 @@ async def websocket_department_chat(
                     continue
 
                 # 2. Run Profanity Pipeline & Escalation
-                is_blocked, current_status, status_changed = process_message_moderation(
-                    message_text, user, db
+                is_blocked, current_status, status_changed = await run_in_threadpool(
+                    process_message_moderation, message_text, user, db
                 )
 
                 if is_blocked:
@@ -294,13 +295,13 @@ async def websocket_department_chat(
                     sender_id=user.id,
                     content=message_text
                 )
-                db.add(chat_msg)
+                await run_in_threadpool(db.add, chat_msg)
                 
                 # Reward XP
                 user.current_xp += 5
                 
-                db.commit()
-                db.refresh(chat_msg)
+                await run_in_threadpool(db.commit)
+                await run_in_threadpool(db.refresh, chat_msg)
 
                 # 4. Broadcast Message to Room
                 broadcast_payload = {

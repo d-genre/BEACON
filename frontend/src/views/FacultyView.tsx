@@ -56,8 +56,8 @@ const FacultyView: React.FC = () => {
     if (!token) return;
     if (!window.confirm("Are you sure you want to delete your faculty card?")) return;
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-      const res = await fetch(`${baseUrl}/api/v1/faculty/${id}`, {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+      const res = await fetch(`${baseUrl}/campus/faculty/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -106,8 +106,8 @@ const FacultyView: React.FC = () => {
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-      const res = await fetch(`${baseUrl}/api/v1/faculty/${editId}`, {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+      const res = await fetch(`${baseUrl}/campus/faculty/${editId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -146,8 +146,8 @@ const FacultyView: React.FC = () => {
     setIsSubmitting(true);
     setErrorMsg(null);
     try {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-      const res = await fetch(`${baseUrl}/api/v1/faculty`, {
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+      const res = await fetch(`${baseUrl}/campus/faculty`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -185,8 +185,8 @@ const FacultyView: React.FC = () => {
     const fetchFaculty = async () => {
       setIsLoading(true);
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-        const res = await fetch(`${baseUrl}/api/v1/faculty`);
+        const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
+        const res = await fetch(`${baseUrl}/campus/faculty`);
         if (res.ok) {
           const data = await res.json();
           setFacultyList(data);

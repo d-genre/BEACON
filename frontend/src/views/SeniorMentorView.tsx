@@ -49,7 +49,7 @@ const SeniorMentorView: React.FC = () => {
     if (!token) return;
     if (!window.confirm("Are you sure you want to delete your mentor profile?")) return;
     try {
-      const res = await fetch(`${baseUrl}/api/v1/mentors/${id}`, {
+      const res = await fetch(`${baseUrl}/campus/mentors/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -72,12 +72,12 @@ const SeniorMentorView: React.FC = () => {
   const [mySkills, setMySkills] = useState('');
   const [myBio, setMyBio] = useState('');
 
-  const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+  const baseUrl = import.meta.env.VITE_API_BASE_URL || '/api';
 
   const fetchMentors = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/v1/mentors`);
+      const res = await fetch(`${baseUrl}/campus/mentors`);
       if (res.ok) {
         const data = await res.json();
         setMentors(data);
@@ -145,7 +145,7 @@ const SeniorMentorView: React.FC = () => {
     };
 
     try {
-      const res = await fetch(`${baseUrl}/api/v1/mentors`, {
+      const res = await fetch(`${baseUrl}/campus/mentors`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,7 +182,7 @@ const SeniorMentorView: React.FC = () => {
   const toggleAvailability = async (id: string) => {
     if (!token) return;
     try {
-      const res = await fetch(`${baseUrl}/api/v1/mentors/${id}/toggle_availability`, {
+      const res = await fetch(`${baseUrl}/campus/mentors/${id}/toggle_availability`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}` }
       });

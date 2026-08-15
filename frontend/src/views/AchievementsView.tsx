@@ -31,7 +31,7 @@ const AchievementsView: React.FC = () => {
     if (!token) return;
     if (!window.confirm("Are you sure you want to delete this achievement?")) return;
     try {
-      const res = await fetch(`${baseUrl}/api/v1/achievements/${id}`, {
+      const res = await fetch(`${baseUrl}/campus/achievements/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -94,7 +94,7 @@ const AchievementsView: React.FC = () => {
     };
 
     try {
-      const res = await fetch(`${baseUrl}/api/v1/achievements/${editingId}`, {
+      const res = await fetch(`${baseUrl}/campus/achievements/${editingId}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -125,7 +125,7 @@ const AchievementsView: React.FC = () => {
   const fetchAchievements = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/api/v1/achievements`);
+      const res = await fetch(`${baseUrl}/campus/achievements`);
       if (res.ok) {
         const data = await res.json();
         setAchievements(data);
@@ -163,7 +163,7 @@ const AchievementsView: React.FC = () => {
     };
 
     try {
-      const res = await fetch(`${baseUrl}/api/v1/achievements`, {
+      const res = await fetch(`${baseUrl}/campus/achievements`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',

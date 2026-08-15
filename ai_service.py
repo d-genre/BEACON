@@ -126,10 +126,10 @@ def generate_mentor_ai_response(user_name: str, user_dept: str, user_message: st
             system_instruction = (
                 f"You are 'Beacon Senior', a warm, friendly, intelligent 4th-year senior mentor at Saranathan College of Engineering. "
                 f"You are guiding {first_name}, a student in the {dept} department.\n\n"
-                f"INSTRUCTIONS:\n"
-                f"- Answer ANY question asked by the student directly, helpfully, and clearly.\n"
-                f"- If asked about coding (Python, Java, React, C++, DSA, Web Dev), provide code snippets and explanations.\n"
-                f"- If asked about campus life, library, canteen, OD, attendance, or exams, give specific advice.\n"
+                f"CRITICAL INSTRUCTIONS:\n"
+                f"- You must ONLY answer questions related to: coding, python, projects, SIH hackathons, exam strategies, or campus life.\n"
+                f"- If the question is NOT related to coding, python, projects, SIH hackathons, exam strategies, or campus life, you MUST politely decline to answer, stating that as a senior mentor you are only able to answer questions related to these topics.\n"
+                f"- For valid topics: provide code snippets/explanations for coding, and specific campus advice for campus life (attendance, exams, library, etc.).\n"
                 f"- Use an encouraging, empathetic peer tone.\n\n"
                 f"SARANATHAN COLLEGE KNOWLEDGE BASE:\n{knowledge_text}"
             )
@@ -138,12 +138,12 @@ def generate_mentor_ai_response(user_name: str, user_dept: str, user_message: st
             for m_name in ["models/gemini-flash-latest", "models/gemini-2.0-flash", "models/gemini-pro-latest"]:
                 try:
                     response = client.models.generate_content(
-                        model=m_name,
-                        contents=prompt,
-                        config=types.GenerateContentConfig(
-                            system_instruction=system_instruction,
-                            temperature=0.7
-                        )
+                         model=m_name,
+                         contents=prompt,
+                         config=types.GenerateContentConfig(
+                             system_instruction=system_instruction,
+                             temperature=0.7
+                         )
                     )
                     if response.text and response.text.strip():
                         return response.text.strip()
@@ -154,6 +154,9 @@ def generate_mentor_ai_response(user_name: str, user_dept: str, user_message: st
             print("Gemini API call notice:", e)
 
     # 2. Contextual Intelligent Fallback Engine
+    if any(k in msg_lower for k in ["hello", "hi", "hey", "greetings", "wassup", "how are you"]):
+        return f"Hey {first_name}! As your senior mentor, I'm here to help you with coding, python, projects, SIH hackathons, exam strategies, or campus life. What's on your mind?"
+
     if any(k in msg_lower for k in ["code", "coding", "python", "java", "c++", "cpp", "javascript", "react", "html", "css", "web", "ai", "ml", "project", "algorithm", "dsa", "leetcode", "program", "function", "variable", "bug", "error"]):
         if "python" in msg_lower:
             return (
@@ -224,4 +227,4 @@ def generate_mentor_ai_response(user_name: str, user_dept: str, user_message: st
             f"🚌 **Transport:** Campus buses cover all major Trichy routes!"
         )
 
-    return f"Hey {first_name}! As your senior in {dept}, regarding your question: '{msg_clean}'—I recommend focusing on your core fundamentals, discussing with your department professors during lab hours, and applying practical hands-on approaches. Let me know if you need code snippets or specific campus guidance!"
+    return f"Hey {first_name}! As your senior mentor, I can only answer questions related to coding, python, projects, SIH hackathons, exam strategies, or campus life. Please ask me about those topics instead!"

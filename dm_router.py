@@ -13,6 +13,7 @@ from fastapi import (
     WebSocketDisconnect,
     status,
 )
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import Session
@@ -548,7 +549,7 @@ async def websocket_direct_messaging(
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid authentication token")
             return
 
-        sender = db.query(User).filter(User.id == sender_id).first()
+        sender = await run_in_threadpool(db.query(User).filter(User.id == sender_id).first)
         if not sender:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Sender profile not found")
             return
@@ -562,11 +563,11 @@ async def websocket_direct_messaging(
             return
 
         # Check target user existence
-        target_user = db.query(User).filter(User.id == target_user_id).first()
+        target_user = await run_in_threadpool(db.query(User).filter(User.id == target_user_id).first)
         if not target_user:
-            mentor = db.query(SeniorMentor).filter(SeniorMentor.id == target_user_id).first()
+            mentor = await run_in_threadpool(db.query(SeniorMentor).filter(SeniorMentor.id == target_user_id).first)
             if mentor:
-                target_user = db.query(User).filter(func.lower(User.email) == mentor.contact_email.lower()).first()
+                target_user = await run_in_threadpool(db.query(User).filter(func.lower(User.email) == mentor.contact_email.lower()).first)
                 if target_user:
                     target_user_id = target_user.id
             if not target_user:
@@ -574,12 +575,14 @@ async def websocket_direct_messaging(
                 return
 
         # 2. Check DM State Lock (Must have status = ACCEPTED)
-        connection = db.query(DMRequest).filter(
-            or_(
-                and_(DMRequest.sender_id == sender_id, DMRequest.receiver_id == target_user_id),
-                and_(DMRequest.sender_id == target_user_id, DMRequest.receiver_id == sender_id)
-            )
-        ).first()
+        connection = await run_in_threadpool(
+            db.query(DMRequest).filter(
+                or_(
+                    and_(DMRequest.sender_id == sender_id, DMRequest.receiver_id == target_user_id),
+                    and_(DMRequest.sender_id == target_user_id, DMRequest.receiver_id == sender_id)
+                )
+            ).first
+        )
 
         if not connection or connection.status != DMRequestStatus.ACCEPTED:
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="DM connection state lock active. Request must be accepted.")
@@ -600,7 +603,7 @@ async def websocket_direct_messaging(
                 if not message_text:
                     continue
 
-                db.refresh(sender)
+                await run_in_threadpool(db.refresh, sender)
 
                 # Check MUTED / BANNED dynamically
                 if sender.account_status in (UserAccountStatus.MUTED, UserAccountStatus.BANNED):
@@ -614,8 +617,8 @@ async def websocket_direct_messaging(
                     continue
 
                 # 3. Profanity Moderation
-                is_blocked, current_status, status_changed = process_message_moderation(
-                    message_text, sender, db
+                is_blocked, current_status, status_changed = await run_in_threadpool(
+                    process_message_moderation, message_text, sender, db
                 )
 
                 if is_blocked:
@@ -642,13 +645,13 @@ async def websocket_direct_messaging(
                     receiver_id=target_user_id,
                     content=message_text
                 )
-                db.add(dm_msg)
+                await run_in_threadpool(db.add, dm_msg)
 
                 # Reward XP
                 sender.current_xp += 5
 
-                db.commit()
-                db.refresh(dm_msg)
+                await run_in_threadpool(db.commit)
+                await run_in_threadpool(db.refresh, dm_msg)
 
                 msg_payload = {
                     "type": "DIRECT_MESSAGE",
