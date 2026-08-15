@@ -103,10 +103,21 @@ def parse_timetable_with_gemini(file_bytes: bytes, mime_type: str) -> List[Dict[
 
 # --- Universal AI Senior Mentor Engine ---
 
+def matches_keywords(text: str, keywords: List[str]) -> bool:
+    """Helper to match whole words/phrases using boundary guards to prevent partial matches like 'ai' in 'chennai'."""
+    for k in keywords:
+        pattern = r'\b' + re.escape(k) + r'\b'
+        if k.endswith('+') or k.endswith('#'):
+            pattern = r'\b' + re.escape(k)
+        if re.search(pattern, text, re.IGNORECASE):
+            return True
+    return False
+
 def generate_mentor_ai_response(user_name: str, user_dept: str, user_message: str, history: List[Dict[str, str]], db: Optional[Session] = None) -> str:
     """
     Universal AI Senior Mentor Chatbot Engine.
-    Uses models/gemini-flash-latest to generate real-time AI responses for ANY prompt.
+    Uses models/gemini-flash-latest to generate real-time AI responses for ANY prompt when active.
+    Includes a robust fallback engine with word boundary guards.
     """
     msg_clean = user_message.strip()
     msg_lower = msg_clean.lower()
@@ -127,7 +138,7 @@ def generate_mentor_ai_response(user_name: str, user_dept: str, user_message: st
                 f"You are 'Beacon Senior', a warm, friendly, intelligent 4th-year senior mentor at Saranathan College of Engineering. "
                 f"You are guiding {first_name}, a student in the {dept} department.\n\n"
                 f"INSTRUCTIONS:\n"
-                f"- Answer ANY question asked by the student directly, helpfully, and clearly.\n"
+                f"- Answer ANY question asked by the student directly, helpfully, and clearly, on any general or college topic.\n"
                 f"- If asked about coding (Python, Java, React, C++, DSA, Web Dev), provide code snippets and explanations.\n"
                 f"- If asked about campus life, library, canteen, OD, attendance, or exams, give specific advice.\n"
                 f"- Use an encouraging, empathetic peer tone.\n\n"
@@ -153,12 +164,15 @@ def generate_mentor_ai_response(user_name: str, user_dept: str, user_message: st
         except Exception as e:
             print("Gemini API call notice:", e)
 
-    # 2. Contextual Intelligent Fallback Engine
-    if any(k in msg_lower for k in ["hello", "hi", "hey", "greetings", "wassup", "how are you"]):
+    # 2. Contextual Intelligent Fallback Engine (with Word Boundary Checks)
+    
+    # Greetings
+    if matches_keywords(msg_lower, ["hello", "hi", "hey", "greetings", "wassup", "how are you", "yo"]):
         return f"Hey {first_name}! As your senior mentor, I'm here to help you with coding, python, projects, SIH hackathons, exam strategies, or campus life. What's on your mind?"
 
-    if any(k in msg_lower for k in ["code", "coding", "python", "java", "c++", "cpp", "javascript", "react", "html", "css", "web", "ai", "ml", "project", "algorithm", "dsa", "leetcode", "program", "function", "variable", "bug", "error"]):
-        if "python" in msg_lower:
+    # Coding & Development
+    if matches_keywords(msg_lower, ["code", "coding", "python", "java", "c++", "cpp", "javascript", "react", "html", "css", "web", "ai", "ml", "project", "projects", "algorithm", "dsa", "leetcode", "program", "function", "variable", "bug", "error"]):
+        if matches_keywords(msg_lower, ["python"]):
             return (
                 f"Hey {first_name}! Here is my senior advice for Python in {dept}:\n\n"
                 f"1. **Core Concepts:** Master lists, dictionaries, list comprehensions, and functions.\n"
@@ -166,14 +180,14 @@ def generate_mentor_ai_response(user_name: str, user_dept: str, user_message: st
                 f"3. **Practice:** Solve 2 problems daily on HackerRank/LeetCode!\n\n"
                 f"Let me know if you want a specific code example or project idea!"
             )
-        elif "react" in msg_lower or "web" in msg_lower or "html" in msg_lower:
+        elif matches_keywords(msg_lower, ["react", "web", "html", "css", "javascript"]):
             return (
                 f"Hi {first_name}! For Web Development in {dept}:\n\n"
                 f"- **Frontend:** Learn HTML5, CSS3 (Tailwind CSS), and JavaScript ES6+ basics, then move to React (Components, Props, `useState`, `useEffect`).\n"
                 f"- **Backend:** Build REST APIs using Python FastAPI or Node.js.\n"
                 f"- **Hosting:** Deploy your projects on Vercel or Netlify for your resume!"
             )
-        elif "project" in msg_lower:
+        elif matches_keywords(msg_lower, ["project", "projects"]):
             return (
                 f"Hey {first_name}! Great project ideas for {dept} students:\n\n"
                 f"1. **Smart Campus Navigation & Event Tracker** (Full-Stack Web App)\n"
@@ -189,8 +203,9 @@ def generate_mentor_ai_response(user_name: str, user_dept: str, user_message: st
                 f"- Practice daily on LeetCode!"
             )
 
-    if any(k in msg_lower for k in ["placement", "internship", "job", "interview", "sih", "hackathon", "resume", "company"]):
-        if "sih" in msg_lower or "hackathon" in msg_lower:
+    # Placements & Hackathons
+    if matches_keywords(msg_lower, ["placement", "internship", "job", "interview", "sih", "hackathon", "resume", "company"]):
+        if matches_keywords(msg_lower, ["sih", "hackathon"]):
             return (
                 f"Hi {first_name}! Smart India Hackathon (SIH) tips for Saranathan students:\n\n"
                 f"1. **Team Structure:** Form a 6-member team (mandatory at least 1 female team member).\n"
@@ -205,21 +220,24 @@ def generate_mentor_ai_response(user_name: str, user_dept: str, user_message: st
                 f"- **Phase 3:** Resume with 2 verified GitHub projects."
             )
 
-    if any(k in msg_lower for k in ["attendance", "od", "on duty", "leave", "condonation", "absent", "permission"]):
+    # Attendance & OD
+    if matches_keywords(msg_lower, ["attendance", "od", "on duty", "leave", "condonation", "absent", "permission"]):
         return (
             f"Hi {first_name}! Attendance & OD Rules:\n\n"
             f"- **Minimum Attendance:** 75% as per Anna University regulations.\n"
             f"- **On-Duty (OD):** For participating in external symposiums, hackathons, or sports, get event proof, fill out the OD application form, and submit it to the {dept} HOD office in advance!"
         )
 
-    if any(k in msg_lower for k in ["exam", "gpa", "cgpa", "internal", "test", "mark", "syllabus", "arrear", "viva"]):
+    # Exams & GPA
+    if matches_keywords(msg_lower, ["exam", "exams", "gpa", "cgpa", "internal", "test", "mark", "marks", "syllabus", "arrear", "arrears", "viva"]):
         return (
             f"Hey {first_name}! Exam strategy for {dept}:\n\n"
             f"- **Internal 20 Marks:** Score high in Cycle Test 1 & 2 to lock in maximum internal marks.\n"
             f"- **University Exams:** Solve past 5-year Anna University question papers and format answers with clean diagrams!"
         )
 
-    if any(k in msg_lower for k in ["library", "canteen", "food", "mess", "bus", "transport", "hostel", "sports", "timing"]):
+    # Campus Facilities
+    if matches_keywords(msg_lower, ["library", "canteen", "food", "mess", "bus", "transport", "hostel", "sports", "timing", "timings"]):
         return (
             f"Hi {first_name}! Campus Facilities:\n\n"
             f"📚 **Central Library:** Open 8:30 AM to 6:30 PM on working days (Digital Library active 24/7 on campus Wi-Fi).\n"
@@ -227,4 +245,9 @@ def generate_mentor_ai_response(user_name: str, user_dept: str, user_message: st
             f"🚌 **Transport:** Campus buses cover all major Trichy routes!"
         )
 
-    return f"Hey {first_name}! As your senior mentor, I can only answer questions related to coding, python, projects, SIH hackathons, exam strategies, or campus life. Please ask me about those topics instead!"
+    # Smart Offline Mode Fallback Message
+    return (
+        f"Hey {first_name}! Since I am currently running in offline fallback mode (without a GEMINI_API_KEY environment variable configured), "
+        f"I can only provide guidance on specific campus topics like coding, placements, SIH hackathons, attendance/OD, exams, and campus facilities. "
+        f"To unlock my full intelligence and let me answer general questions like '{msg_clean}', please configure the GEMINI_API_KEY in your server's environment variables!"
+    )
