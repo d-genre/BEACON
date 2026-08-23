@@ -1,2 +1,2 @@
 # BEACON
-Beacon
+Beacon for ActivePieces
